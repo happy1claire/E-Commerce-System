@@ -81,3 +81,14 @@ log/
 data/
 tmp/
 cache/
+
+
+docker-compose.override.yml
+*.pid
+
+*.tfstate
+*.tfstate.backup
+.terraform/
+.terraform.lock.hcl
+
+*.kube
