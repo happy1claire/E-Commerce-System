@@ -1,0 +1,83 @@
+###############################
+# IntelliJ IDEA
+###############################
+.idea/
+*.iml
+*.iws
+out/
+
+###############################
+# Java
+###############################
+*.class
+*.log
+*.jar
+*.war
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# JVM crash logs
+hs_err_pid*
+replay_pid*
+
+###############################
+# Spring Boot / Maven
+###############################
+target/
+!src/main/resources/
+!src/test/resources/
+
+# Maven extra files
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+
+###############################
+# Spring Boot / Gradle (if using)
+###############################
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+gradle-app.setting
+
+###############################
+# OS Files (macOS / Windows)
+###############################
+.DS_Store
+.AppleDouble
+.LSOverride
+
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+###############################
+# Environment / Secrets
+###############################
+.env
+*.env
+.env.*
+application.properties
+application.yml
+application.yaml
+application-*.yml
+application-*.yaml
+secret/
+credentials/
+
+###############################
+# Distributed System Specific
+###############################
+# Local cluster logs
+logs/
+log/
+*.trace
+
+# Temporary simulation data
+data/
+tmp/
+cache/
