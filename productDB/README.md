@@ -42,6 +42,7 @@ mvn spring-boot:run -Dspring-boot.run.arguments="\
 --peers=http://localhost:8081,http://localhost:8082,http://localhost:8083,http://localhost:8084,http://localhost:8085"
 ```
 
+
 To test locally for write and read
 
 After run the 5 instances
@@ -74,7 +75,6 @@ curl http://localhost:8082/get/foo
 curl http://localhost:8084/get/foo
 curl http://localhost:8085/get/foo
 ```
-
 
 To test locally for update and read
 
