@@ -42,7 +42,8 @@ mvn spring-boot:run -Dspring-boot.run.arguments="\
 --peers=http://localhost:8081,http://localhost:8082,http://localhost:8083,http://localhost:8084,http://localhost:8085"
 ```
 
-To test locally
+
+To test locally for write and read
 
 After run the 5 instances
 
@@ -75,6 +76,45 @@ curl http://localhost:8084/get/foo
 curl http://localhost:8085/get/foo
 ```
 
+To test locally for update and read
+
+After run the 5 instances
+
+Step 1: add the product on node3
+```bash
+curl -X POST "http://localhost:8083/product" \
+-H "Content-Type: application/json" \
+-d '{"id":"1","name":"Sample Product","price":9.99,"description":"Test product"}'
+```
+
+Step 1: Update the product on node3
+
+```bash
+curl -X PUT "http://localhost:8083/product/1" \
+-H "Content-Type: application/json" \
+-d '{"name":"Updated Product","price":19.99,"description":"Updated description"}'
+```
+
+Step 2: Immediately read node1 (stale read possible)
+
+```bash
+curl http://localhost:8081/get/foo
+```
+
+Step 3: Local read to show updated version
+
+```bash
+curl http://localhost:8081/local_read/foo
+```
+
+Step 4: Read after propagation completes
+
+```bash
+curl http://localhost:8081/get/foo
+curl http://localhost:8082/get/foo
+curl http://localhost:8084/get/foo
+curl http://localhost:8085/get/foo
+```
 
 
 
