@@ -1,5 +1,7 @@
 package com.cs6650.leaderless.controller;
 
+import com.cs6650.leaderless.model.Product;
+import com.cs6650.leaderless.model.PropagateRequest;
 import com.cs6650.leaderless.model.VersionedValue;
 import com.cs6650.leaderless.service.KVStore;
 import com.cs6650.leaderless.service.PropagationService;
@@ -21,23 +23,8 @@ public class ProductDbController {
   private final KVStore kvStore;
   private final PropagationService propagationService;
 
-  /**
-   * Simulated delay (in milliseconds) to represent follower processing latency
-   * when handling propagation requests.
-   */
-  @Value("${follower.handler.delay.ms}")
-  private long followerHandlerDelayMs;
-
-  /** Simulated delay for the coordinator to sleep after sending a message to a peer. */
-  @Value("${coordinator.post.peer.sleep.ms:200}")
-  private long coordinatorPostPeerSleepMs;
-
-  /**
-   * Timeout (in milliseconds) for the coordinator to wait
-   * for peer acknowledgments during propagation.
-   */
-  @Value("${propagation.timeout.ms:5000}")
-  private long propagationTimeoutMs;
+  @Value("${propagation.timeout.ms}")
+  private int propagationTimeoutMs;
 
   /**
    * Constructs a new {@code LeaderlessController} with dependencies injected.
@@ -57,29 +44,29 @@ public class ProductDbController {
    * it updates its local store with a new versioned value,
    * and then propagates the update to all peer nodes.
    *
-   * @param body a JSON map containing "key" and "value" fields
+   * @param product a JSON map containing "key" and "value" fields
    * @return {@code 201 Created} if successfully written and propagated to all peers;
    *         {@code 400 Bad Request} if the key is missing;
    *         {@code 500 Internal Server Error} if propagation fails
    */
-  @PostMapping("/set")
-  public ResponseEntity<?> set(@RequestBody Map<String, String> body) {
-    String key = body.get("key");
-    String value = body.get("value");
+  @PostMapping("/product")
+  public ResponseEntity<?> addProduct(@RequestBody Product product) {
+    String key = product.getId();
+
     if (key == null || key.isEmpty()) return ResponseEntity.badRequest().body("Key must not be empty");
 
     // increment version and write locally
     long version = kvStore.nextVersion();
-    kvStore.writeLocal(key, value, version);
+    kvStore.writeLocal(key, product, version);
 
     // propagate to peers (W = N)
-    boolean ok = propagationService.propagateToAll(key, value, version, propagationTimeoutMs, coordinatorPostPeerSleepMs);
+    boolean ok = propagationService.propagateToAll(key, product, version, propagationTimeoutMs);
 
     if (ok) {
       VersionedValue stored = kvStore.get(key);
       return ResponseEntity.status(HttpStatus.CREATED).body(
               Map.of(
-                      "value", stored.getValue(),
+                      "product", stored.getProduct(),
                       "version", stored.getVersion(),
                       "timestamp", stored.getTimestamp()
               ));
@@ -95,24 +82,20 @@ public class ProductDbController {
    * value and updates its local store only if the received version is newer
    * than its current version. This ensures eventual consistency.
    *
-   * @param body a JSON map containing "key", "value", and "version"
+   * @param request a JSON map containing "key", "product", and "version"
    * @return {@code 200 OK} once the propagation is processed
    * @throws InterruptedException if the artificial delay is interrupted
    */
   @PostMapping("/propagate")
-  public ResponseEntity<?> propagate(@RequestBody Map<String, Object> body) throws InterruptedException {
-    String key = (String) body.get("key");
-    String value = (String) body.get("value");
-    Number versionNum = (Number) body.get("version");
-    long version = versionNum.longValue();
-
-    // simulate follower processing delay
-    Thread.sleep(followerHandlerDelayMs);
+  public ResponseEntity<?> propagate(@RequestBody PropagateRequest request) throws InterruptedException {
+    String key = request.getKey();
+    Product product = request.getProduct();
+    long version = request.getVersion();
 
     // write if newer
     VersionedValue current = kvStore.get(key);
     if (current == null || version > current.getVersion()) {
-      kvStore.putIfNewer(key, value, version);
+      kvStore.putIfNewer(key, product, version);
     }
 
     return ResponseEntity.ok().build();
@@ -130,13 +113,19 @@ public class ProductDbController {
    * @throws InterruptedException if future read delays are simulated
    */
   @GetMapping("/get/{key}")
-  public ResponseEntity<?> get(@PathVariable String key) throws InterruptedException {
+  public ResponseEntity<?> lookUpProduct(@PathVariable String key) throws InterruptedException {
     VersionedValue v = kvStore.get(key);
     if (v == null) return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
 
     // For simulation, follower read delay is not necessary here since this is leaderless,
     // but you can insert a small sleep if you want to create larger inconsistency windows.
-    return ResponseEntity.ok(Map.of("value", v.getValue(), "version", v.getVersion(), "timestamp", v.getTimestamp()));
+    return ResponseEntity.ok(
+        Map.of(
+            "product", v.getProduct(),
+            "version", v.getVersion(),
+            "timestamp", v.getTimestamp()
+        )
+    );
   }
 
   /**
@@ -152,7 +141,7 @@ public class ProductDbController {
   public ResponseEntity<?> localRead(@PathVariable String key) {
     VersionedValue v = kvStore.get(key);
     if (v == null) return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
-    return ResponseEntity.ok(Map.of("value", v.getValue(), "version", v.getVersion(), "timestamp", v.getTimestamp()));
+    return ResponseEntity.ok(Map.of("product", v.getProduct(), "version", v.getVersion(), "timestamp", v.getTimestamp()));
   }
 
 }

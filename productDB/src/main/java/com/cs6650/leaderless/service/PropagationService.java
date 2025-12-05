@@ -1,5 +1,7 @@
 package com.cs6650.leaderless.service;
 
+import com.cs6650.leaderless.model.Product;
+import lombok.Getter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
@@ -25,11 +27,23 @@ public class PropagationService {
 
   /**
    * List of peer node of comma separated URLs participating in replication.
-   * Example: {@code http://localhost:8081,http://localhost:8082,http://localhost:8083}
+   * Example:
+   * -- GETTER --
+   *  Returns the list of peer node URLs.
+   *
+   {@code http://localhost:8081,http://localhost:8082,http://localhost:8083}
+   * @return list of peers
    */
+  @Getter
   private final List<String> peers;
 
-  /** The URL of this node itself, used to avoid sending propagation to self. */
+  /** The URL of this node itself, used to avoid sending propagation to self.
+   * -- GETTER --
+   *  Returns the URL of this current node.
+   *
+   * @return self URL
+   */
+  @Getter
   private final String selfUrl;
 
   /** Thread pool executor used to send propagation requests concurrently. */
@@ -56,21 +70,6 @@ public class PropagationService {
   }
 
   /**
-   * Returns the list of peer node URLs.
-   *
-   * @return list of peers
-   */
-  public List<String> getPeers() { return peers; }
-
-  /**
-   * Returns the URL of this current node.
-   *
-   * @return self URL
-   */
-  public String getSelfUrl() { return selfUrl; }
-
-  // propagate synchronously and wait for all acks (W = N)
-  /**
    * Propagates a key-value update to all peer nodes and waits for all acknowledgements.
    * Each propagation request is sent concurrently using a thread pool, and
    * the method blocks until all peers respond or the given timeout is reached.
@@ -78,17 +77,16 @@ public class PropagationService {
    * considered unsuccessful.
    *
    * @param key                the key being updated
-   * @param value              the new value associated with the key
+   * @param product              the new value associated with the key
    * @param version            the version number of this update
    * @param propagateTimeoutMs timeout in milliseconds to wait for all acknowledgements
-   * @param postPeerSleepMs    milliseconds for the coordinator to sleep after sending each message
    * @return {@code true} if all peers successfully acknowledge the update; {@code false} otherwise
    */
-  public boolean propagateToAll(String key, String value, long version, long propagateTimeoutMs, long postPeerSleepMs) {
+  public boolean propagateToAll(String key, Product product, long version, long propagateTimeoutMs) {
     // filter out self from peers
     List<String> otherPeers = peers.stream()
             .filter(peer -> !peer.equalsIgnoreCase(selfUrl))
-            .collect(Collectors.toList());
+            .toList();
 
     // if no other peers, return true (single node case)
     if (otherPeers.isEmpty()) {
@@ -102,7 +100,7 @@ public class PropagationService {
         String url = peer + "/propagate";
         Map<String, Object> payload = new HashMap<>();
         payload.put("key", key);
-        payload.put("value", value);
+        payload.put("product", product);
         payload.put("version", version);
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
@@ -139,15 +137,6 @@ public class PropagationService {
     try {
       for (Callable<Boolean> task : tasks) {
         futures.add(executor.submit(task));
-        // Sleep after dispatching the message to the follower
-        // Thread.sleep(postPeerSleepMs);
-        try {
-          Thread.sleep(postPeerSleepMs);
-        } catch (InterruptedException e) {
-          futures.forEach(f -> f.cancel(true));
-          Thread.currentThread().interrupt();
-          return false;
-        }
       }
 
       long deadline = System.currentTimeMillis() + propagateTimeoutMs;

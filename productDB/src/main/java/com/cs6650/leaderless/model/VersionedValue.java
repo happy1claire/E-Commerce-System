@@ -1,17 +1,18 @@
 package com.cs6650.leaderless.model;
 
+import lombok.Getter;
+import lombok.Setter;
+
+@Getter
+@Setter
 public class VersionedValue {
-  private final String value;
+  private Product product;
   private final long version; // use long for safety
   private final long timestamp;
 
-  public VersionedValue(String value, long version, long timestamp) {
-    this.value = value;
+  public VersionedValue(Product product, long version, long timestamp) {
+    this.product = product;
     this.version = version;
     this.timestamp = timestamp;
   }
-
-  public String getValue() { return value; }
-  public long getVersion() { return version; }
-  public long getTimestamp() { return timestamp; }
 }

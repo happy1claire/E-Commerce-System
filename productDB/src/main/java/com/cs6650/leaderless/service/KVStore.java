@@ -1,5 +1,6 @@
 package com.cs6650.leaderless.service;
 
+import com.cs6650.leaderless.model.Product;
 import com.cs6650.leaderless.model.VersionedValue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
@@ -32,10 +33,10 @@ public class KVStore {
   }
 
   // write if newer (or absent)
-  public void putIfNewer(String key, String value, long version) throws InterruptedException {
+  public void putIfNewer(String key, Product product, long version) throws InterruptedException {
     store.compute(key, (k, existing) -> {
       if (existing == null || version > existing.getVersion()) {
-        return new VersionedValue(value, version, System.currentTimeMillis());
+        return new VersionedValue(product, version, System.currentTimeMillis());
       } else {
         return existing;
       }
@@ -43,7 +44,7 @@ public class KVStore {
   }
 
   // local immediate write (Coordinator writes first)
-  public void writeLocal(String key, String value, long version) {
-    store.put(key, new VersionedValue(value, version, System.currentTimeMillis()));
+  public void writeLocal(String key, Product product, long version) {
+    store.put(key, new VersionedValue(product, version, System.currentTimeMillis()));
   }
 }
