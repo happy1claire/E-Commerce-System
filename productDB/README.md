@@ -42,17 +42,6 @@ mvn spring-boot:run -Dspring-boot.run.arguments="\
 --peers=http://localhost:8081,http://localhost:8082,http://localhost:8083,http://localhost:8084,http://localhost:8085"
 ```
 
-Step 2: Run the Integration Tests
-
-With your 5 nodes running, open a sixth terminal and execute the tests using Maven
-
-```bash
-mvn test -Dtest=LeaderlessIntegrationTests
-```
-
-or you can run the tests directly from intelliJ
-
-
 To test locally
 
 After run the 5 instances
@@ -60,9 +49,9 @@ After run the 5 instances
 Step 1: Write to node 3
 
 ```bash
-curl -X POST "http://localhost:8083/set" \
+curl -X POST "http://localhost:8083/product" \
 -H "Content-Type: application/json" \
--d '{"key":"foo","value":"bar"}'
+-d '{"id":"foo","name":"Sample Product","price":9.99,"description":"Test product"}'
 ```
 
 Step 2: Immediately read node1 (stale read possible)
@@ -87,24 +76,5 @@ curl http://localhost:8085/get/foo
 ```
 
 
-Use Docker to test:
-
-Step 1: Start the cluster: open a terminal in your project's root directory
-
-```bash
-docker-compose up --build
-```
-
-Step 2: Run integration tests on new terminal
-
-```bash
-mvn test -Dtest=LeaderlessIntegrationTests
-```
-
-Step 3: Shut down the cluster
-
-```bash
-docker-compose down
-```
 
 
