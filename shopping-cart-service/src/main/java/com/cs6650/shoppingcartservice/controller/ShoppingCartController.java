@@ -1,0 +1,131 @@
+package com.cs6650.shoppingcartservice.controller;
+
+import com.cs6650.shoppingcartservice.model.ShoppingCartModel;
+
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.Map;
+
+@RestController
+@RequestMapping("/shopping-cart")
+public class ShoppingCartController {
+
+    private final ShoppingCartModel model;
+
+    public ShoppingCartController(ShoppingCartModel model) {
+        this.model = model;
+    }
+
+    /**
+     * Add items to the cart
+     * e.g. POST /shopping-cart/{customerId}/items?itemId=SKU123&quantity=3
+     * 201 Created
+     */
+    @PostMapping("/{customerId}/items")
+    public ResponseEntity<Map<String, Integer>> addToCart(@PathVariable String customerId,
+            @RequestParam String itemId,
+            @RequestParam int quantity) {
+        // Get cartId or generate a cartId
+        String cartId = model.findCartIdByCustomer(customerId);
+        model.addToCart(customerId, itemId, quantity);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.add(HttpHeaders.LOCATION, "/shopping-cart/" + cartId + "/items");
+        // return CartItems
+        return new ResponseEntity<>(model.getCartItems(cartId), headers, HttpStatus.CREATED);
+    }
+
+    /**
+     * Get cartId or generate a new one
+     * e.g. GET /shopping-cart/by-customer/{customerId}
+     * Response: {"cartId":"1234567890"}
+     */
+    @GetMapping("/by-customer/{customerId}")
+    public Map<String, String> getOrCreateCartId(@PathVariable String customerId) {
+        String cartId = model.findCartIdByCustomer(customerId);
+        return Map.of("cartId", cartId);
+    }
+
+    /**
+     * Get all items from the cart
+     * e.g. GET /shopping-cart/{cartId}/items
+     * Response: { "itemA":2, "itemB":3 }
+     */
+    @GetMapping("/{cartId}/items")
+    public Map<String, Integer> getCartItems(@PathVariable String cartId) {
+        return model.getCartItems(cartId);
+    }
+
+    /**
+     * Get all items with cartId from the cart
+     * e.g. GET /shopping-cart/{cartId}/itemsWithId
+     * Response: { "cartId123456" : { "itemA":2, "itemB":3 }}
+     */
+    @GetMapping("/{cartId}/itemsWithId")
+    public String getCartIdAndItems(@PathVariable String cartId) {
+        return model.getCartIdAndItems(cartId);
+    }
+
+    /**
+     * checkout
+     * e.g. POST /shopping-cart/{cartId}/checkout?creditCardNumber=4111111111111111
+     */
+    @PostMapping("/{cartId}/checkout")
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    public void checkout(@PathVariable String cartId,
+            @RequestParam String creditCardNumber) {
+        model.checkout(cartId, creditCardNumber);
+    }
+
+    /**
+     * Mocking one user.
+     * Generate a cart ID, add items to the cart multiple times, and checkout.
+     * e.g. POST /shopping-cart/shopToOrder
+     */
+    @PostMapping("/shopToOrder")
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    public void shopToOrder(@RequestParam String creditCardNumber) {
+        // Generate a customer ID
+        String customerId = model.getCustomerId();
+
+        // Generate a cart ID, using the existing one if the customerID exists
+        String cartId = model.findCartIdByCustomer(customerId);
+
+        // Add items to the cart
+        // randomly generate 1-3 items, with itemId "SKUxxx" and quantity between 1-100
+        int itemCount = (int) (Math.random() * 3) + 1;
+        for (int i = 0; i < itemCount; i++) {
+            String itemId = String.format("SKU%03d", (int) (Math.random() * 10 + 1));
+            int quantity = (int) (Math.random() * 100) + 1;
+            model.addToCartByCartId(cartId, itemId, quantity);
+        }
+
+        // Checkout
+        model.checkout(cartId, creditCardNumber);
+    }
+
+    /**
+     * Catches validation errors (like bad cartId or card format) and returns 400.
+     */
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<Map<String, String>> handleIllegalArgument(IllegalArgumentException ex) {
+        // Returns 400 Bad Request
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(Map.of("message", ex.getMessage()));
+    }
+
+    /**
+     * Catches internal errors (like auth service being down) and returns 500.
+     */
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<Map<String, String>> handleInternalErrors(IllegalStateException ex) {
+        // Returns 500 Internal Server Error
+        return ResponseEntity
+                .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("message", "An internal error occurred: " + ex.getMessage()));
+    }
+}
