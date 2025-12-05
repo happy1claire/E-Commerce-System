@@ -79,3 +79,12 @@ curl -X POST http://localhost:8080/warehouse/ship \
 ```
 
 - This request will always return an `HTTP 200 OK` status with shipment details, including a `trackingNumber`.
+
+### Health Check (`/warehouse/health`)
+
+This endpoint can be used to verify that the service is running and responsive.
+
+**Command:**
+```bash
+curl http://localhost:8080/warehouse/health
+```

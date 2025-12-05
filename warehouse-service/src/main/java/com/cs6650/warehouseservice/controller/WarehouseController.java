@@ -3,6 +3,7 @@ package com.cs6650.warehouseservice.controller;
 import com.cs6650.warehouseservice.dto.ReserveRequest;
 import com.cs6650.warehouseservice.dto.ShipRequest;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -90,5 +91,15 @@ public class WarehouseController {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
+    }
+
+    /**
+     * Health check endpoint.
+     * Returns a 200 OK status to indicate the service is running.
+     */
+    @GetMapping("/health")
+    public ResponseEntity<Map<String, String>> healthCheck() {
+        // A simple health check that returns status "UP"
+        return ResponseEntity.ok(Map.of("status", "UP"));
     }
 }
