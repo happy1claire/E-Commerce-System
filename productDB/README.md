@@ -98,22 +98,22 @@ curl -X PUT "http://localhost:8083/product/1" \
 Step 2: Immediately read node1 (stale read possible)
 
 ```bash
-curl http://localhost:8081/get/foo
+curl http://localhost:8081/get/1
 ```
 
 Step 3: Local read to show updated version
 
 ```bash
-curl http://localhost:8081/local_read/foo
+curl http://localhost:8081/local_read/1
 ```
 
 Step 4: Read after propagation completes
 
 ```bash
-curl http://localhost:8081/get/foo
-curl http://localhost:8082/get/foo
-curl http://localhost:8084/get/foo
-curl http://localhost:8085/get/foo
+curl http://localhost:8081/get/1
+curl http://localhost:8082/get/1
+curl http://localhost:8084/get/1
+curl http://localhost:8085/get/1
 ```
 
 
