@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  node1:
+    build: .
+    ports:
+      - "8081:8081"
+    environment:
+      - SERVER_PORT=8081
+      - SELF_URL=http://node1:8081
+      - PEERS=http://node1:8081,http://node2:8082,http://node3:8083,http://node4:8084,http://node5:8085
+
+  node2:
+    build: .
+    ports:
+      - "8082:8082"
+    environment:
+      - SERVER_PORT=8082
+      - SELF_URL=http://node2:8082
+      - PEERS=http://node1:8081,http://node2:8082,http://node3:8083,http://node4:8084,http://node5:8085
+
+  node3:
+    build: .
+    ports:
+      - "8083:8083"
+    environment:
+      - SERVER_PORT=8083
+      - SELF_URL=http://node3:8083
+      - PEERS=http://node1:8081,http://node2:8082,http://node3:8083,http://node4:8084,http://node5:8085
+
+  node4:
+    build: .
+    ports:
+      - "8084:8084"
+    environment:
+      - SERVER_PORT=8084
+      - SELF_URL=http://node4:8084
+      - PEERS=http://node1:8081,http://node2:8082,http://node3:8083,http://node4:8084,http://node5:8085
+
+  node5:
+    build: .
+    ports:
+      - "8085:8085"
+    environment:
+      - SERVER_PORT=8085
+      - SELF_URL=http://node5:8085
+      - PEERS=http://node1:8081,http://node2:8082,http://node3:8083,http://node4:8084,http://node5:8085
