@@ -77,6 +77,48 @@ public class ProductDbController {
   }
 
   /**
+   * Updates an existing product by ID.
+   * Behaves like a write: increments version, writes locally, then propagates (W = N).
+   *
+   * @param id the product ID to update
+   * @param product the updated product body
+   * @return 200 OK with updated version info, or 404 if not found
+   */
+  @PutMapping("/product/{id}")
+  public ResponseEntity<?> updateProduct(@PathVariable String id, @RequestBody Product product) {
+    if (id == null || id.isEmpty()) {
+      return ResponseEntity.badRequest().body("ID must not be empty");
+    }
+
+    // Ensure ID matches payload
+    product.setId(id);
+
+    VersionedValue existing = kvStore.get(id);
+    if (existing == null) {
+      return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Product not found");
+    }
+
+    long version = kvStore.nextVersion();
+    kvStore.writeLocal(id, product, version);
+
+    boolean ok = propagationService.propagateToAll(id, product, version, propagationTimeoutMs);
+
+    if (ok) {
+      VersionedValue stored = kvStore.get(id);
+      return ResponseEntity.ok(
+          Map.of(
+              "product", stored.getProduct(),
+              "version", stored.getVersion(),
+              "timestamp", stored.getTimestamp()
+          )
+      );
+    } else {
+      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+              .body("Failed to propagate to all peers");
+    }
+  }
+
+  /**
    * Handles propagation requests from peer nodes. (Call by other nodes.)
    * When a coordinator sends updates, each follower receives the propagated
    * value and updates its local store only if the received version is newer
