@@ -1,0 +1,219 @@
+openapi: 3.0.0
+info:
+  title: Shopping Cart Service API
+  version: 1.0.0
+  description: API for managing shopping carts, products, and checkout.
+
+servers:
+  - url: http://localhost:8080
+
+paths:
+
+  /shopping-cart/{customerId}/cartId:
+    get:
+      tags: [ShoppingCart]
+      operationId: getOrCreateCartId
+      summary: Get or create cartId by customer
+      description: >
+        Get the existing cartId for the given customerId, or create a new one.
+      parameters:
+        - name: customerId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Customer identifier.
+      responses:
+        '200':
+          description: Cart ID for the given customer.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CartIdResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /shopping-cart/{cartId}/addToCart:
+    post:
+      tags: [ ShoppingCart ]
+      operationId: addToCart
+      summary: Add products to the cart
+      description: >
+        Add products to the customer's cart. Returns the cart products after update.
+        Location header points to `/shopping-cart/{cartId}/addToCart`.
+      parameters:
+        - name: cartId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Cart identifier.
+        - name: productId
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Product SKU to add to cart.
+        - name: quantity
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: int32
+            minimum: 1
+          description: Quantity of the product to add.
+      responses:
+        '201':
+          description: Products added to cart successfully.
+          headers:
+            Location:
+              description: /shopping-cart/{cartId}/getCartIdAndProducts.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CartProducts'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /shopping-cart/{cartId}/getCartIdAndProducts:
+    get:
+      tags: [ShoppingCart]
+      operationId: getCartIdAndProducts
+      summary: Get cartId and products together
+      description: >
+        Get a structure that includes the cartId and its products.
+        Example response: { "cartId123456" : { "productA":2, "productB":3 } }.
+      parameters:
+        - name: cartId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Cart identifier.
+      responses:
+        '200':
+          description: CartId and products.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CartIdAndProducts'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /shopping-cart/{cartId}/checkout:
+    post:
+      tags: [ShoppingCart]
+      operationId: checkout
+      summary: Checkout the cart
+      description: >
+        Checkout the cart with the provided credit card number.
+      parameters:
+        - name: cartId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Cart identifier.
+        - name: creditCardNumber
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Credit card number used for checkout.
+      responses:
+        '202':
+          description: Checkout request accepted.
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /shopping-cart/shopToOrder:
+    post:
+      tags: [ShoppingCart]
+      operationId: shopToOrder
+      summary: Mock a full customer flow from cart to order
+      description: >
+        Mock one user: generate customerId, create cart, add random products,
+        and checkout with the provided credit card number.
+      parameters:
+        - name: creditCardNumber
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Credit card number used for checkout.
+      responses:
+        '202':
+          description: Mock flow request accepted.
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+components:
+  schemas:
+    CartProducts:
+      type: object
+      description: Map of productId to quantity.
+      additionalProperties:
+        type: integer
+        format: int32
+      example:
+        SKU123: 3
+        SKU456: 2
+
+    CartIdResponse:
+      type: object
+      properties:
+        cartId:
+          type: string
+          description: Cart identifier.
+      required:
+        - cartId
+      example:
+        cartId: "1234567890"
+
+    CartIdAndProducts:
+      type: object
+      description: >
+        An object where the key is the cartId and the value is the cart products
+        map for that cart.
+      additionalProperties:
+        $ref: '#/components/schemas/CartProducts'
+      example:
+        cartId123456:
+          SKU123: 2
+          SKU456: 3
+
+    ErrorResponse:
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+        - message
+      example:
+        message: "Invalid cartId format"
+
+  responses:
+    BadRequestError:
+      description: Bad request due to validation or invalid input.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    InternalServerError:
+      description: Internal server error.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
