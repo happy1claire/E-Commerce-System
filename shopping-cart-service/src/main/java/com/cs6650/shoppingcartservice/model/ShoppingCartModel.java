@@ -1,7 +1,7 @@
 package com.cs6650.shoppingcartservice.model;
 
 import com.cs6650.shoppingcartservice.service.CreditCardAuthService;
-import com.cs6650.shoppingcartservice.service.OrderProducerService;
+import com.cs6650.shoppingcartservice.service.WarehouseService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
@@ -22,14 +22,11 @@ public class ShoppingCartModel {
     private final Map<String, Map<String, Integer>> cartItems = new ConcurrentHashMap<>();
     // Randomly generate IDs
     private static final SecureRandom RAND = new SecureRandom();
-    private final CreditCardAuthService authService;
     // ObjectMapper to convert our order object to a JSON string
     private static final ObjectMapper objectMapper = new ObjectMapper();
 
-    /**
-     * Service responsible for sending order messages to RabbitMQ
-     */
-    private final OrderProducerService orderProducerService;
+    private final CreditCardAuthService authService;
+    private final WarehouseService warehouseService;
 
     /**
      * Constructor injection ensures that OrderProducerService is provided
@@ -137,23 +134,55 @@ public class ShoppingCartModel {
 
     /**
      * After User clicks checkout:
+     * - call Warehouse.reserve to reserve each product
      * - call CreditCardAuthorizer
-     * - contact Warehouse
+     * - call Warehouse.ship to ship each product
      */
     public void checkout(String cartId, String creditCardNumber) {
         if (cartId == null) {
             throw new IllegalArgumentException("cartId must not be null");
         }
 
+        // call Warehouse.reserve * #Products
+        // getCartItems(cartId) Response: { "itemA":2, "itemB":3 }
+        Map<String, Integer> items = getCartItems(String cartId);
+
+        // 1. Reserve inventory for each product in the cart
+        for (Map.Entry<String, Integer> entry : items.entrySet()) {
+            String productIdStr = entry.getKey();
+            int quantity = entry.getValue();
+
+            long productId = Long.parseLong(productIdStr); // or adapt type if productId is not numeric
+
+            boolean reserved = warehouseService.reserve(productId, quantity);
+
+            // If any item cannot be reserved, we fail the whole checkout
+            if (!reserved) {
+                // Optionally: log and return a specific error code/message
+                return false;
+            }
+        }
         // credit card must match the format 1234-5678-9012-3456
         if (!creditCardNumber.matches("\\d{4}-\\d{4}-\\d{4}-\\d{4}")) {
             throw new IllegalArgumentException("creditCardNumber format invalid");
         }
 
+        // 2. Authorize the credit card
         authService.authorize(creditCardNumber);
 
-        String cartMsgToQueue = getCartIdAndItems(cartId);
-        this.orderProducerService.sendOrderMessage(cartMsgToQueue);
+        // 3. If payment is successful, ship each product
+        for (Map.Entry<String, Integer> entry : items.entrySet()) {
+            String productIdStr = entry.getKey();
+            int quantity = entry.getValue();
 
+            long productId = Long.parseLong(productIdStr);
+
+            boolean shipped = warehouseService.ship(productId, quantity);
+            // For this assignment ship() is expected to always succeed.
+            // Optionally you can check and handle failures here.
+            if (!shipped) {
+                // You might log an error or mark the order as "shipping failed".
+            }
+        }
     }
 }
