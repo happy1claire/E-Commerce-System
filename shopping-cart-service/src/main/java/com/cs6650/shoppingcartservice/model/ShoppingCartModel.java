@@ -152,7 +152,7 @@ public class ShoppingCartModel {
         }
 
         // 3. Authorize payment (you already have this service in your assignment)
-//        authService.authorize(creditCardNumber);
+        authService.authorize(creditCardNumber);
 
         // 4. Ship all items
         for (Map.Entry<String, Integer> entry : items.entrySet()) {
