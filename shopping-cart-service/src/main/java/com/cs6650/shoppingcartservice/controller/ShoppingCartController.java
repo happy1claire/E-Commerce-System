@@ -20,6 +20,17 @@ public class ShoppingCartController {
     }
 
     /**
+     * Get cartId or generate a new one
+     * e.g. GET /shopping-cart/by-customer/{customerId}
+     * Response: {"cartId":"1234567890"}
+     */
+    @GetMapping("/by-customer/{customerId}")
+    public Map<String, String> getOrCreateCartId(@PathVariable String customerId) {
+        String cartId = model.findCartIdByCustomer(customerId);
+        return Map.of("cartId", cartId);
+    }
+
+    /**
      * Add items to the cart
      * e.g. POST /shopping-cart/{customerId}/items?itemId=SKU123&quantity=3
      * 201 Created
@@ -36,27 +47,6 @@ public class ShoppingCartController {
         headers.add(HttpHeaders.LOCATION, "/shopping-cart/" + cartId + "/items");
         // return CartItems
         return new ResponseEntity<>(model.getCartItems(cartId), headers, HttpStatus.CREATED);
-    }
-
-    /**
-     * Get cartId or generate a new one
-     * e.g. GET /shopping-cart/by-customer/{customerId}
-     * Response: {"cartId":"1234567890"}
-     */
-    @GetMapping("/by-customer/{customerId}")
-    public Map<String, String> getOrCreateCartId(@PathVariable String customerId) {
-        String cartId = model.findCartIdByCustomer(customerId);
-        return Map.of("cartId", cartId);
-    }
-
-    /**
-     * Get all items from the cart
-     * e.g. GET /shopping-cart/{cartId}/items
-     * Response: { "itemA":2, "itemB":3 }
-     */
-    @GetMapping("/{cartId}/items")
-    public Map<String, Integer> getCartItems(@PathVariable String cartId) {
-        return model.getCartItems(cartId);
     }
 
     /**
