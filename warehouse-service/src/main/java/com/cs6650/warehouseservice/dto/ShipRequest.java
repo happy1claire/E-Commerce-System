@@ -1,15 +1,13 @@
 package com.cs6650.warehouseservice.dto;
 
 public class ShipRequest {
-    private long productId;
+    private int productId;
     private int quantity;
 
     // Getters and Setters
-    public long getProductId() {
-        return productId;
-    }
+    public int getProductId() { return productId; }
 
-    public void setProductId(long productId) {
+    public void setProductId(int productId) {
         this.productId = productId;
     }
 
