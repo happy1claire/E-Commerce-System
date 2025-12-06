@@ -32,16 +32,15 @@ public class ShoppingCartController {
 
     /**
      * Add items to the cart
-     * e.g. POST /shopping-cart/{customerId}/items?itemId=SKU123&quantity=3
+     * e.g. POST /shopping-cart/{cartId}/items?itemId=SKU123&quantity=3
      * 201 Created
      */
-    @PostMapping("/{customerId}/items")
-    public ResponseEntity<Map<String, Integer>> addToCart(@PathVariable String customerId,
+    @PostMapping("/{cartId}/items")
+    public ResponseEntity<Map<String, Integer>> addToCart(@PathVariable String cartId,
             @RequestParam String itemId,
             @RequestParam int quantity) {
-        // Get cartId or generate a cartId
-        String cartId = model.findCartIdByCustomer(customerId);
-        model.addToCart(customerId, itemId, quantity);
+
+        model.addToCart(cartId, itemId, quantity);
 
         HttpHeaders headers = new HttpHeaders();
         headers.add(HttpHeaders.LOCATION, "/shopping-cart/" + cartId + "/items");
@@ -61,7 +60,7 @@ public class ShoppingCartController {
 
     /**
      * checkout
-     * e.g. POST /shopping-cart/{cartId}/checkout?creditCardNumber=4111111111111111
+     * e.g. POST /shopping-cart/{cartId}/checkout?creditCardNumber=4111-1111-1111-1111
      */
     @PostMapping("/{cartId}/checkout")
     @ResponseStatus(HttpStatus.ACCEPTED)
@@ -90,7 +89,7 @@ public class ShoppingCartController {
         for (int i = 0; i < itemCount; i++) {
             String itemId = String.format("SKU%03d", (int) (Math.random() * 10 + 1));
             int quantity = (int) (Math.random() * 100) + 1;
-            model.addToCartByCartId(cartId, itemId, quantity);
+            model.addToCart(cartId, itemId, quantity);
         }
 
         // Checkout
