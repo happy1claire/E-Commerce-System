@@ -29,41 +29,18 @@ public class ShoppingCartModel {
     private final WarehouseService warehouseService;
 
     /**
-     * Constructor injection ensures that OrderProducerService is provided
-     * by Spring when ShoppingCartModel is instantiated.
+     * Constructor injection ensures that WarehouseService and CreditCardAuthService are provided.
      *
-     * @param orderProducerService the bean responsible for sending order messages
      */
-    public ShoppingCartModel(OrderProducerService orderProducerService, CreditCardAuthService authService) {
-        this.orderProducerService = orderProducerService;
+    public ShoppingCartModel(WarehouseService warehouseService, CreditCardAuthService authService) {
+        this.warehouseService = warehouseService;
         this.authService = authService;
     }
 
     /**
      * Add items with quantities to the cart
      */
-    public void addToCart(String customerId, String itemId, int quantity) {
-        if (customerId == null || itemId == null) {
-            throw new IllegalArgumentException("customerId/itemId must not be null");
-        }
-        if (quantity < 1 || quantity > 10_000) {
-            throw new IllegalArgumentException("quantity must be between 1 and 10000");
-        }
-
-        // Find cartId or generate cartId
-        String cartId = findCartIdByCustomer(customerId);
-
-        // Extract Cart Items and their quantities; create if absent
-        Map<String, Integer> itemsWithQuantity = cartItems.computeIfAbsent(cartId, id -> new ConcurrentHashMap<>());
-
-        // If an item is already in the cart, sum up; otherwise put quantity
-        itemsWithQuantity.merge(itemId, quantity, Integer::sum);
-    }
-
-    /**
-     * Add items with quantities to the cart by cartId
-     */
-    public void addToCartByCartId(String cartId, String itemId, int quantity) {
+    public void addToCart(String cartId, String itemId, int quantity) {
         if (cartId == null || itemId == null) {
             throw new IllegalArgumentException("cartId/itemId must not be null");
         }
@@ -71,12 +48,16 @@ public class ShoppingCartModel {
             throw new IllegalArgumentException("quantity must be between 1 and 10000");
         }
 
-        // Extract Cart Items and their quantities; create if absent
+        // Find cartId or generate cartId
+//        String cartId = findCartIdByCustomer(customerId);
+
+        // Extract Cart Items and their quantities; create if the cart is absent
         Map<String, Integer> itemsWithQuantity = cartItems.computeIfAbsent(cartId, id -> new ConcurrentHashMap<>());
 
         // If an item is already in the cart, sum up; otherwise put quantity
         itemsWithQuantity.merge(itemId, quantity, Integer::sum);
     }
+
 
     /**
      * Get or generate customer's cartId
@@ -143,46 +124,69 @@ public class ShoppingCartModel {
             throw new IllegalArgumentException("cartId must not be null");
         }
 
-        // call Warehouse.reserve * #Products
-        // getCartItems(cartId) Response: { "itemA":2, "itemB":3 }
-        Map<String, Integer> items = getCartItems(String cartId);
 
-        // 1. Reserve inventory for each product in the cart
+        // 1. Retrieve items from the cart: Map<itemId(SKUxxx), quantity>
+        Map<String, Integer> items = getCartItems(cartId);
+        if (items == null || items.isEmpty()) {
+            throw new IllegalArgumentException("Cart is empty for cartId: " + cartId);
+        }
+
+        // 2. Reserve inventory for each item
         for (Map.Entry<String, Integer> entry : items.entrySet()) {
-            String productIdStr = entry.getKey();
+            String itemId = entry.getKey();      // e.g. "SKU001"
             int quantity = entry.getValue();
 
-            long productId = Long.parseLong(productIdStr); // or adapt type if productId is not numeric
+            long productId = parseSkuToProductId(itemId); // convert "SKU001" -> 1
 
             boolean reserved = warehouseService.reserve(productId, quantity);
-
-            // If any item cannot be reserved, we fail the whole checkout
             if (!reserved) {
-                // Optionally: log and return a specific error code/message
-                return false;
+                // Fail fast if any item cannot be reserved
+                throw new IllegalStateException("Not enough inventory for itemId: " + itemId);
             }
         }
+
+
         // credit card must match the format 1234-5678-9012-3456
         if (!creditCardNumber.matches("\\d{4}-\\d{4}-\\d{4}-\\d{4}")) {
             throw new IllegalArgumentException("creditCardNumber format invalid");
         }
 
-        // 2. Authorize the credit card
-        authService.authorize(creditCardNumber);
+        // 3. Authorize payment (you already have this service in your assignment)
+//        authService.authorize(creditCardNumber);
 
-        // 3. If payment is successful, ship each product
+        // 4. Ship all items
         for (Map.Entry<String, Integer> entry : items.entrySet()) {
-            String productIdStr = entry.getKey();
+            String itemId = entry.getKey();
             int quantity = entry.getValue();
 
-            long productId = Long.parseLong(productIdStr);
+            long productId = parseSkuToProductId(itemId);
 
             boolean shipped = warehouseService.ship(productId, quantity);
-            // For this assignment ship() is expected to always succeed.
-            // Optionally you can check and handle failures here.
             if (!shipped) {
-                // You might log an error or mark the order as "shipping failed".
+                // For this assignment, shipping is always successful.
+                // In a real system, you might log or compensate here.
+                throw new IllegalStateException("Shipping failed for itemId: " + itemId);
             }
         }
     }
+
+    /**
+     * Converts an itemId in format "SKU001" into a numeric productId.
+     * Example:
+     *   "SKU001" -> 1
+     *   "SKU010" -> 10
+     */
+    private long parseSkuToProductId(String sku) {
+        if (sku == null || !sku.startsWith("SKU")) {
+            throw new IllegalArgumentException("Invalid SKU format: " + sku);
+        }
+        String numericPart = sku.substring(3);  // from index 3 to end, e.g. "001"
+        try {
+            return Long.parseLong(numericPart);
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("Invalid SKU numeric part: " + sku, e);
+        }
+    }
 }
+
+
