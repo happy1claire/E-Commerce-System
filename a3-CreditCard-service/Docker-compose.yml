@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  a2-CreditCard-service:
+    # Build from current directory
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    # Container name for easier identification
+    container_name: a2-CreditCard-service-container
+
+    # Port mapping: host:container
+    ports:
+      - "8080:8080"
+
+    # Environment variables
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - JAVA_OPTS=-Xmx256m -Xms128m
+
+    # Health check
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/api"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+    # Restart policy
+    restart: unless-stopped
+
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
