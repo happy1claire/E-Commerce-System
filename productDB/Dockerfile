@@ -10,6 +10,15 @@ FROM eclipse-temurin:17-jre-jammy
 
 WORKDIR /app
 
+RUN apt-get update && apt-get install -y \
+    curl \
+    jq \
+    awscli \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY --from=build /app/target/*.jar app.jar
 
-ENTRYPOINT ["java", "-jar", "app.jar"]
+COPY entrypoint.sh .
+RUN chmod +x entrypoint.sh
+
+ENTRYPOINT ["./entrypoint.sh"]

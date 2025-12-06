@@ -61,7 +61,7 @@ Desktop.ini
 .env
 *.env
 .env.*
-application.properties
+# application.properties
 application.yml
 application.yaml
 application-*.yml
