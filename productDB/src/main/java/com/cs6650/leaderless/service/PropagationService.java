@@ -33,7 +33,7 @@ public class PropagationService {
      * Returns the list of peer node URLs.
      *
      * {@code http://localhost:8081,http://localhost:8082,http://localhost:8083}
-     * 
+     *
      * @return list of peers
      */
     @Getter
@@ -93,7 +93,7 @@ public class PropagationService {
      * @return {@code true} if all peers successfully acknowledge the update;
      *         {@code false} otherwise
      */
-    public boolean propagateToAll(String key, Product product, long version, long propagateTimeoutMs) {
+    public boolean propagateToAll(Integer key, Product product, long version, long propagateTimeoutMs) {
         // filter out self from peers
         List<String> otherPeers = peers.stream()
                 .filter(peer -> !peer.equalsIgnoreCase(selfAddress))
