@@ -52,7 +52,13 @@ Step 1: Write to node 3
 ```bash
 curl -X POST "http://localhost:8083/product" \
 -H "Content-Type: application/json" \
--d '{"id":1,"name":"Sample Product","price":9.99,"description":"Test product"}'
+-d '{
+  "id": 1,
+  "sku": "ABC-123",
+  "manufacturer": "Nike",
+  "categoryId": 10,
+  "weight": 250
+}'
 ```
 
 Step 2: Immediately read node1 (stale read possible)
@@ -84,30 +90,42 @@ Step 1: add the product on node3
 ```bash
 curl -X POST "http://localhost:8083/product" \
 -H "Content-Type: application/json" \
--d '{"id":2,"name":"Sample Product","price":9.99,"description":"Test product"}'
+-d '{
+  "id": 1,
+  "sku": "ABC-123",
+  "manufacturer": "Nike",
+  "categoryId": 10,
+  "weight": 250
+}'
 ```
 
-Step 1: Update the product on node3
+Step 2: Update the product on node3
 
 ```bash
 curl -X PUT "http://localhost:8083/product/2" \
 -H "Content-Type: application/json" \
--d '{"name":"Updated Product","price":19.99,"description":"Updated description"}'
+-d '{
+  "id": 1,
+  "sku": "CED-456",
+  "manufacturer": "NB",
+  "categoryId": 10,
+  "weight": 250
+}'
 ```
 
-Step 2: Immediately read node1 (stale read possible)
+Step 3: Immediately read node1 (stale read possible)
 
 ```bash
 curl http://localhost:8081/get/2
 ```
 
-Step 3: Local read to show updated version
+Step 4: Local read to show updated version
 
 ```bash
 curl http://localhost:8081/local_read/2
 ```
 
-Step 4: Read after propagation completes
+Step 5: Read after propagation completes
 
 ```bash
 curl http://localhost:8081/get/2

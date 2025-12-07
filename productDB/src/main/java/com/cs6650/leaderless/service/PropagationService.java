@@ -23,75 +23,58 @@ import java.util.stream.Collectors;
 @Service
 public class PropagationService {
 
-  /** HTTP client used for sending POST requests to peer nodes. */
-  private final RestTemplate rest = new RestTemplate();
+    /** HTTP client used for sending POST requests to peer nodes. */
+    private final RestTemplate rest = new RestTemplate();
 
-  /**
-   * List of peer node of comma separated URLs participating in replication.
-   * Example:
-   * -- GETTER --
-   *  Returns the list of peer node URLs.
-   *
-   {@code http://localhost:8081,http://localhost:8082,http://localhost:8083}
-   * @return list of peers
-   */
-  @Getter
-  private final List<String> peers;
+    /**
+     * List of peer node of comma separated URLs participating in replication.
+     * Example:
+     * -- GETTER --
+     * Returns the list of peer node URLs.
+     *
+     * {@code http://localhost:8081,http://localhost:8082,http://localhost:8083}
+     *
+     * @return list of peers
+     */
+    @Getter
+    @Setter
+    public List<String> peers;
 
-  /** The URL of this node itself, used to avoid sending propagation to self.
-   * -- GETTER --
-   *  Returns the URL of this current node.
-   *
-   * @return self URL
-   */
-  @Getter
-  private final String selfUrl;
+    /**
+     * The URL of this node itself, used to avoid sending propagation to self.
+     * -- GETTER --
+     * Returns the URL of this current node.
+     *
+     * @return self URL
+     */
+    @Getter
+    @Setter
+    public String selfAddress;
 
-  /** Thread pool executor used to send propagation requests concurrently. */
-  private final ExecutorService executor = Executors.newCachedThreadPool();
+    /** Thread pool executor used to send propagation requests concurrently. */
+    private final ExecutorService executor = Executors.newCachedThreadPool();
 
-  /** Maximum retry time when propagation fail. */
-  @Value("${max.retries}")
-  private int maxRetries ;
+    /** Maximum retry time when propagation fail. */
+    @Value("${max.retries}")
+    private int maxRetries;
 
-  /**
-   * Constructs a {@link PropagationService} that handles replication to peer nodes.
-   *
-   * @param peerList comma-separated list of peer URLs from application properties (e.g. {@code http://localhost:8081,http://localhost:8082})
-   * @param selfUrl  the URL of this current node, used to skip self during propagation
-   */
-  public PropagationService(
-      @Value("${peers:}") String peerList,
-      @Value("${self.url:}") String selfUrl) {
-    this.peers = Arrays.stream(peerList.split(","))
-        .map(String::trim)
-        .filter(s -> !s.isEmpty())
-        .collect(Collectors.toList());
-    this.selfUrl = selfUrl;
-  }
-
-  /**
-   * Propagates a key-value update to all peer nodes and waits for all acknowledgements.
-   * Each propagation request is sent concurrently using a thread pool, and
-   * the method blocks until all peers respond or the given timeout is reached.
-   * If any peer fails to acknowledge within the timeout, the propagation is
-   * considered unsuccessful.
-   *
-   * @param key                the key being updated
-   * @param product            the new value associated with the key
-   * @param version            the version number of this update
-   * @param propagateTimeoutMs timeout in milliseconds to wait for all acknowledgements
-   * @return {@code true} if all peers successfully acknowledge the update; {@code false} otherwise
-   */
-  public boolean propagateToAll(Integer key, Product product, long version, long propagateTimeoutMs) {
-    // filter out self from peers
-    List<String> otherPeers = peers.stream()
-            .filter(peer -> !peer.equalsIgnoreCase(selfUrl))
-            .toList();
-
-    // if no other peers, return true (single node case)
-    if (otherPeers.isEmpty()) {
-      return true;
+    /**
+     * Constructs a {@link PropagationService} that handles replication to peer
+     * nodes.
+     *
+     * @param peerList comma-separated list of peer URLs from application properties
+     *                 (e.g. {@code http://localhost:8081,http://localhost:8082})
+     * @param selfUrl  the URL of this current node, used to skip self during
+     *                 propagation
+     */
+    public PropagationService(
+            @Value("${peers:}") String peerList,
+            @Value("${self.url:}") String selfUrl) {
+        this.peers = Arrays.stream(peerList.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .collect(Collectors.toList());
+        this.selfAddress = selfUrl;
     }
 
     /**
@@ -110,7 +93,7 @@ public class PropagationService {
      * @return {@code true} if all peers successfully acknowledge the update;
      *         {@code false} otherwise
      */
-    public boolean propagateToAll(String key, Product product, long version, long propagateTimeoutMs) {
+    public boolean propagateToAll(Integer key, Product product, long version, long propagateTimeoutMs) {
         // filter out self from peers
         List<String> otherPeers = peers.stream()
                 .filter(peer -> !peer.equalsIgnoreCase(selfAddress))
