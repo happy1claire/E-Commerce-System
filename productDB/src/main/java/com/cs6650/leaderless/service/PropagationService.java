@@ -77,12 +77,12 @@ public class PropagationService {
    * considered unsuccessful.
    *
    * @param key                the key being updated
-   * @param product              the new value associated with the key
+   * @param product            the new value associated with the key
    * @param version            the version number of this update
    * @param propagateTimeoutMs timeout in milliseconds to wait for all acknowledgements
    * @return {@code true} if all peers successfully acknowledge the update; {@code false} otherwise
    */
-  public boolean propagateToAll(String key, Product product, long version, long propagateTimeoutMs) {
+  public boolean propagateToAll(Integer key, Product product, long version, long propagateTimeoutMs) {
     // filter out self from peers
     List<String> otherPeers = peers.stream()
             .filter(peer -> !peer.equalsIgnoreCase(selfUrl))
