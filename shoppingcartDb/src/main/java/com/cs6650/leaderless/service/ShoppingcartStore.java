@@ -11,11 +11,11 @@ import org.springframework.beans.factory.annotation.Value;
 
 @Service
 public class ShoppingcartStore {
-  /** ConcurrentHashMap<String CartId, VersionedValue>*/
+  /** ConcurrentHashMap<String CustomerId, VersionedValue>*/
   private final ConcurrentHashMap<String, VersionedValue> carts = new ConcurrentHashMap<>();
 
-  /** ConcurrentHashMap<String CustomerId, CartId>*/
-  private final ConcurrentHashMap<String, String> customerToCart =  new ConcurrentHashMap<>();
+//  /** ConcurrentHashMap<String CustomerId, CartId>*/
+//  private final ConcurrentHashMap<String, String> customerToCart =  new ConcurrentHashMap<>();
 
   private final AtomicLong versionCounter = new AtomicLong(0);
   private final int nodeId;

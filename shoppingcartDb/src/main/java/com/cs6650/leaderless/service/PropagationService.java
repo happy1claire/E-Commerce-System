@@ -1,7 +1,10 @@
 package com.cs6650.leaderless.service;
 
+import com.cs6650.leaderless.model.Shoppingcart;
+import com.cs6650.leaderless.model.VersionedValue;
 import lombok.Getter;
 import lombok.Setter;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
@@ -14,16 +17,18 @@ import java.util.stream.Collectors;
 /**
  * Service responsible for propagating key-value updates among peer nodes
  * in a leaderless replication setup.
- * When a node receives a client write request, it acts as the coordinator
- * and uses this service to forward the update to all other peers.
- * Each propagation is performed asynchronously but waited on collectively
- * to a quorum(W = N) consistency model.
  */
 @Service
 public class PropagationService {
 
     /** HTTP client used for sending POST requests to peer nodes. */
     private final RestTemplate rest = new RestTemplate();
+
+    @Value("${propagation.write.quorum}")
+    private int propagationWriteQuorum;
+
+    @Value("${propagation.read.quorum}")
+    private int propagationReadQuorum;
 
     /**
      * List of peer node of comma separated URLs participating in replication.
@@ -57,6 +62,8 @@ public class PropagationService {
     @Value("${max.retries}")
     private int maxRetries;
 
+    private final ShoppingcartStore shoppingcartStore;
+
     /**
      * Constructs a {@link PropagationService} that handles replication to peer
      * nodes.
@@ -66,85 +73,184 @@ public class PropagationService {
      * @param selfUrl  the URL of this current node, used to skip self during
      *                 propagation
      */
+    @Autowired
     public PropagationService(
             @Value("${peers:}") String peerList,
-            @Value("${self.url:}") String selfUrl) {
+            @Value("${self.url:}") String selfUrl,
+            ShoppingcartStore shoppingcartStore, ShoppingcartStore shoppingcartStore1){
         this.peers = Arrays.stream(peerList.split(","))
                 .map(String::trim)
                 .filter(s -> !s.isEmpty())
                 .collect(Collectors.toList());
         this.selfAddress = selfUrl;
+        this.shoppingcartStore = shoppingcartStore1;
     }
 
     /**
-     * Propagates a key-value update to all peer nodes and waits for all
-     * acknowledgements.
-     * Each propagation request is sent concurrently using a thread pool, and
-     * the method blocks until all peers respond or the given timeout is reached.
-     * If any peer fails to acknowledge within the timeout, the propagation is
-     * considered unsuccessful.
+     * Performs a quorum-based read (R) across all replicas in the leaderless system.
      *
-     * @param key                the key being updated
-     * @param product            the new value associated with the key
-     * @param version            the version number of this update
-     * @param propagateTimeoutMs timeout in milliseconds to wait for all
-     *                           acknowledgements
-     * @return {@code true} if all peers successfully acknowledge the update;
-     *         {@code false} otherwise
+     * If quorum cannot be achieved within the timeout window, the method returns {@code null},
+     * allowing the controller to respond with an appropriate HTTP error (e.g., 504 Gateway Timeout).
+     *
+     * @param key the key being read (shopping cart ID)
+     * @param timeoutMs maximum time allowed to gather quorum responses
+     * @return the newest {@link VersionedValue} observed among quorum responses,
+     *         or {@code null} if quorum was not reached
      */
-    public boolean propagateToAll(String key, Product product, long version, long propagateTimeoutMs) {
-        // filter out self from peers
+    public VersionedValue readWithQuorum(String key, long timeoutMs) {
+
+        int quorum = this.propagationReadQuorum;
+
         List<String> otherPeers = peers.stream()
                 .filter(peer -> !peer.equalsIgnoreCase(selfAddress))
                 .toList();
 
-        // if no other peers, return true (single node case)
+        List<Callable<VersionedValue>> tasks = new ArrayList<>();
+
+        tasks.add(() -> shoppingcartStore.getCart(key));
+
+        for (String peer : otherPeers) {
+            tasks.add(() -> {
+                try {
+                    String url = peer + "/local_read/" + key;
+                    ResponseEntity<Map> resp = rest.getForEntity(url, Map.class);
+
+                    if (!resp.getStatusCode().is2xxSuccessful()) return null;
+                    if (resp.getBody() == null) return null;
+
+                    Map<String, Object> body = resp.getBody();
+                    Map<String, Object> cartMap = (Map<String, Object>) body.get("shoppingcart");
+                    if (cartMap == null) return null;
+
+                    Shoppingcart sc = new Shoppingcart();
+                    sc.setCustomerId((String) cartMap.get("customerId"));
+
+                    Map<String, Integer> rawItems = (Map<String, Integer>) cartMap.get("items");
+                    HashMap<Integer, Integer> items = new HashMap<>();
+
+                    if (rawItems != null) {
+                        for (Map.Entry<String, Integer> entry : rawItems.entrySet()) {
+                            try {
+                                items.put(Integer.valueOf(entry.getKey()), entry.getValue());
+                            } catch (NumberFormatException ignore) {}
+                        }
+                    }
+
+                    sc.setItems(items);
+
+                    long version = ((Number) body.get("version")).longValue();
+                    long timestamp = ((Number) body.get("timestamp")).longValue();
+
+                    return new VersionedValue(sc, version, timestamp);
+
+                } catch (Exception e) {
+                    return null;
+                }
+            });
+        }
+
+        ExecutorService exec = Executors.newCachedThreadPool();
+        List<Future<VersionedValue>> futures = new ArrayList<>();
+        for (Callable<VersionedValue> t : tasks) futures.add(exec.submit(t));
+
+        long deadline = System.currentTimeMillis() + timeoutMs;
+        int success = 0;
+        VersionedValue best = null;
+
+        for (Future<VersionedValue> f : futures) {
+            long timeout = Math.max(1, deadline - System.currentTimeMillis());
+            VersionedValue result = null;
+
+            try {
+                result = f.get(timeout, TimeUnit.MILLISECONDS);
+            } catch (Exception ignore) {}
+
+            if (result != null) {
+                success++;
+
+                if (best == null || result.getVersion() > best.getVersion()) {
+                    best = result;
+                }
+
+                if (success >= quorum) {
+                    exec.shutdownNow();
+                    return best;
+                }
+            }
+        }
+
+        exec.shutdownNow();
+        return null;
+    }
+
+    /**
+     * Propagates a key-value update to all peer nodes and waits for quorum
+     * acknowledgements
+     *
+     * @param key                the key being updated
+     * @param product            the new value associated with the key
+     * @param version            the version number of this update
+     * @param propagateTimeoutMs timeout in milliseconds to wait for acknowledgements
+     * @return {@code true} if at least 3 peers acknowledge the write; {@code false} otherwise
+     */
+    public boolean propagate(String key, Shoppingcart product, long version, long propagateTimeoutMs) {
+
+        // Filter out self so we only propagate to other peers
+        List<String> otherPeers = peers.stream()
+                .filter(peer -> !peer.equalsIgnoreCase(selfAddress))
+                .toList();
+
+        // If there are no other peers, the write is trivially successful
         if (otherPeers.isEmpty()) {
             return true;
         }
 
         List<Callable<Boolean>> tasks = new ArrayList<>();
+
         for (String peer : otherPeers) {
             tasks.add(() -> {
-                // This lambda will be executed by the executor service, each task is a lambda
-                // function that returns a boolean
                 String url = peer + "/propagate";
+
                 Map<String, Object> payload = new HashMap<>();
                 payload.put("key", key);
-                payload.put("product", product);
+                payload.put("shoppingcart", product);
                 payload.put("version", version);
+
                 HttpHeaders headers = new HttpHeaders();
                 headers.setContentType(MediaType.APPLICATION_JSON);
+
                 HttpEntity<Map<String, Object>> req = new HttpEntity<>(payload, headers);
 
-                // all peers are attempted in parallel and each peer gets maxRetries attempts
                 boolean success = false;
+
                 for (int i = 0; i <= this.maxRetries && !success; i++) {
                     try {
                         ResponseEntity<String> resp = rest.postForEntity(url, req, String.class);
                         success = resp.getStatusCode().is2xxSuccessful();
+
                         if (!success && i < maxRetries) {
-                            Thread.sleep(100); // Sleep before next retry on non-2xx status
+                            Thread.sleep(100);
                         }
+
                     } catch (InterruptedException ie) {
                         Thread.currentThread().interrupt();
-                        return false; // Stop if interrupted
+                        return false;
                     } catch (Exception e) {
-                        // Network error or other exception, success remains false.
                         System.err.println("Error propagating to " + peer + ": " + e.getMessage());
                     }
-                    // Sleep before the next retry if the attempt failed and it's not the last retry
+
                     if (!success && i < maxRetries) {
                         Thread.sleep(100);
                     }
                 }
+
                 System.out.println("Peer " + peer + " propagation " + (success ? "succeeded" : "failed"));
                 return success;
             });
         }
 
-        // Submit tasks with a delay after each submission
         List<Future<Boolean>> futures = new ArrayList<>();
+
         try {
             for (Callable<Boolean> task : tasks) {
                 futures.add(executor.submit(task));
@@ -152,30 +258,32 @@ public class PropagationService {
 
             long deadline = System.currentTimeMillis() + propagateTimeoutMs;
 
-            // W=N: All replicas must acknowledge for success
+            int successCount = 0;
+
             for (Future<Boolean> future : futures) {
-                long timeout = Math.max(1, deadline - System.currentTimeMillis()); // at least 1ms
-                // A future might be cancelled if timeout is reached, or get() could throw an
-                // exception.
-                // We use a calculated timeout for each future.get() call.
-                if (!future.isCancelled() && future.get(timeout, TimeUnit.MILLISECONDS)) {
-                    // This one succeeded
-                } else {
-                    // A peer failed or timed out. Since W=N, we fail the whole operation.
-                    System.out.println("Propagation failed for at least one peer.");
-                    // Cancel remaining tasks
-                    futures.forEach(f -> f.cancel(true));
-                    return false;
+                long timeout = Math.max(1, deadline - System.currentTimeMillis());
+                boolean ok = false;
+                try {
+                    ok = !future.isCancelled() && future.get(timeout, TimeUnit.MILLISECONDS);
+                } catch (Exception e) {
+                    ok = false;
+                }
+
+                if (ok) {
+                    successCount++;
+                    if (successCount >= propagationWriteQuorum) {
+                        futures.forEach(f -> f.cancel(true));  // cancel remaining tasks (optional)
+                        return true;
+                    }
                 }
             }
-        } catch (InterruptedException | ExecutionException | CancellationException | TimeoutException e) {
+            return false;
+
+        } catch (Exception e) {
             System.err.println("Error during propagation: " + e.getMessage());
-            // On any failure, cancel outstanding tasks to release resources
             futures.forEach(f -> f.cancel(true));
             Thread.currentThread().interrupt();
             return false;
         }
-
-        return true;
     }
 }

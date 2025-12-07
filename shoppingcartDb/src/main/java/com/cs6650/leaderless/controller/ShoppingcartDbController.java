@@ -5,13 +5,13 @@ import com.cs6650.leaderless.model.PropagateRequest;
 import com.cs6650.leaderless.model.VersionedValue;
 import com.cs6650.leaderless.service.ShoppingcartStore;
 import com.cs6650.leaderless.service.PropagationService;
+import com.cs6650.leaderless.util.Transaction;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -31,7 +31,7 @@ public class ShoppingcartDbController {
   /**
    * Constructs a new {@code LeaderlessController} with dependencies injected.
    *
-   * @param shoppingcartStore             the key-value store handling local reads/writes
+   * @param shoppingcartStore   the key-value store handling local reads/writes
    * @param propagationService  the service responsible for propagating updates to peers
    */
   @Autowired
@@ -40,10 +40,29 @@ public class ShoppingcartDbController {
     this.propagationService = propagationService;
   }
 
+  /**
+   * Reads a shopping cart using quorum-based replication.
+   *
+   * It returns the versioned cart value that has the highest version among
+   * the quorum responses.
+   *
+   * If quorum is not achieved within the timeout window, the method returns
+   * HTTP 504 (Gateway Timeout), indicating that the system cannot guarantee
+   * a consistent read at this moment.
+   *
+   * @param key the cart identifier (typically customer ID)
+   * @return the shopping cart value with metadata (version, timestamp),
+   *         or an error response if quorum read fails
+   * @throws InterruptedException if the read process is interrupted
+   */
   @GetMapping("/get/{key}")
   public ResponseEntity<?> getItems(@PathVariable String key) throws InterruptedException {
-    VersionedValue cart = shoppingcartStore.getCart(key);
-    if (cart == null) return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+    VersionedValue cart = propagationService.readWithQuorum(key, propagationTimeoutMs);
+
+    if (cart == null) {
+      return ResponseEntity.status(HttpStatus.GATEWAY_TIMEOUT)
+              .body("Quorum read failed or not enough replicas responded");
+    }
 
     return ResponseEntity.ok(
             Map.of(
@@ -54,36 +73,55 @@ public class ShoppingcartDbController {
     );
   }
 
+  /**
+   * Writes or updates a shopping cart under a leaderless replication model.
+   *
+   * @param key the unique cart identifier (e.g., user or cart ID)
+   * @param items the map of itemId → quantity to store in the cart
+   * @return the updated cart value with version metadata, or an error if write quorum fails
+   */
   @PostMapping("/item/{key}")
-  public ResponseEntity<?> setItem(@PathVariable String key, @RequestBody List<HashMap<String, Integer>> items) {
-    if (key == null || key.isEmpty()) return ResponseEntity.badRequest().body("Key must not be empty");
+  public ResponseEntity<?> setItem(@PathVariable String key, @RequestBody HashMap<Integer, Integer> items) {
+    if (key == null || key.isEmpty()) {
+      return ResponseEntity.badRequest().body("Key must not be empty");
+    }
 
-    VersionedValue cart = shoppingcartStore.getCart(key);
+    Transaction.begin();
 
-    if (cart == null) return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Cart not found");
+    VersionedValue existing = shoppingcartStore.getCart(key);
+    Shoppingcart shoppingcart;
 
-    Shoppingcart shoppingcart = cart.getShoppingcart();
-    shoppingcart.setItems(items);
+    if (existing == null) {
+      shoppingcart = new Shoppingcart();
+      shoppingcart.setCustomerId(key);
+      shoppingcart.setItems(items);
+    } else {
+      shoppingcart = existing.getShoppingcart();
+      shoppingcart.setItems(items);
+    }
 
-    // increment version and write locally
     long version = shoppingcartStore.nextVersion();
     shoppingcartStore.writeLocal(key, shoppingcart, version);
 
-    // propagate to peers (W = 2)
-    boolean ok = propagationService.propagateToAll(key, shoppingcart, version, propagationTimeoutMs);
+    boolean ok = propagationService.propagate(key, shoppingcart, version, propagationTimeoutMs);
 
-    if (ok) {
-      VersionedValue stored = shoppingcartStore.getCart(key);
-      return ResponseEntity.status(HttpStatus.CREATED).body(
-              Map.of(
-                      "items", stored.getShoppingcart().getItems(),
-                      "version", stored.getVersion(),
-                      "timestamp", stored.getTimestamp()
-              ));
-    } else {
+    if (!ok) {
+      Transaction.abort();
       return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-              .body("Failed to propagate to all peers");
+              .body("Failed to propagate to enough peers (W quorum not met)");
     }
+
+    Transaction.commit();
+
+    VersionedValue stored = shoppingcartStore.getCart(key);
+
+    return ResponseEntity.status(HttpStatus.CREATED).body(
+            Map.of(
+                    "items", stored.getShoppingcart().getItems(),
+                    "version", stored.getVersion(),
+                    "timestamp", stored.getTimestamp()
+            )
+    );
   }
 
 //  @GetMapping
@@ -108,13 +146,13 @@ public class ShoppingcartDbController {
   @PostMapping("/propagate")
   public ResponseEntity<?> propagate(@RequestBody PropagateRequest request) throws InterruptedException {
     String key = request.getKey();
-    Shoppingcart shoppingcart = request.getProduct();
+    Shoppingcart shoppingcart = request.getShoppingcart();
     long version = request.getVersion();
 
     // write if newer
-    VersionedValue current = shoppingcartStore.get(key);
+    VersionedValue current = shoppingcartStore.getCart(key);
     if (current == null || version > current.getVersion()) {
-      shoppingcartStore.putIfNewer(key, product, version);
+      shoppingcartStore.putIfNewer(key, shoppingcart, version);
     }
 
     return ResponseEntity.ok().build();
@@ -131,9 +169,9 @@ public class ShoppingcartDbController {
    */
   @GetMapping("/local_read/{key}")
   public ResponseEntity<?> localRead(@PathVariable String key) {
-    VersionedValue v = shoppingcartStore.get(key);
+    VersionedValue v = shoppingcartStore.getCart(key);
     if (v == null) return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
-    return ResponseEntity.ok(Map.of("product", v.getProduct(), "version", v.getVersion(), "timestamp", v.getTimestamp()));
+    return ResponseEntity.ok(Map.of("shoppingcart", v.getShoppingcart(), "version", v.getVersion(), "timestamp", v.getTimestamp()));
   }
 
 }
