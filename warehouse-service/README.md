@@ -7,6 +7,24 @@ This Spring Boot application provides a simple warehouse service with endpoints 
 - Java 17
 - RabbitMQ running and accessible (defaults to `localhost:5672`)
 
+### Start RabbitMQ with Docker
+```bash
+docker run -d \
+  --name rabbitmq \
+  -p 5672:5672 \
+  -p 15672:15672 \
+  rabbitmq:3-management
+
+```
+RabbitMQ server listening on 5672
+
+Default login:
+
+user: guest
+
+password: guest
+
+
 ## Running the Service
 
 You can run the service in two main ways:
