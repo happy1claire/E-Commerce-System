@@ -1,6 +1,14 @@
 package com.cs6650.productservice.controller;
 
 import com.cs6650.productservice.model.Product;
+import com.cs6650.productservice.model.StoreProductRequest;
+
+import java.io.IOException;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpResponse;
+import java.net.http.HttpRequest;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Random;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
@@ -20,9 +28,16 @@ public class ProductController {
   @Value("${bad.service.mode:false}")
   private boolean badServiceMode;
 
+  @Value("${productdb.base-url}")
+  private String productDbUrl;
+
   private final Random random = new Random();
 
-  @GetMapping("/products/{productId}")
+  private final HttpClient httpClient = HttpClient.newHttpClient();
+  private final ObjectMapper objectMapper = new ObjectMapper();
+
+
+    @GetMapping("/products/{productId}")
   public ResponseEntity<?> getProduct(@PathVariable Integer productId) {
 
     // validate that productId is positive (productId >= 1)
@@ -59,12 +74,44 @@ public class ProductController {
       error.put("message", "Service temporarily unavailable (simulated failure)");
       return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(error);
     }
+      // Generate random productId (positive 32-bit int)
+      int newProductId = random.nextInt(Integer.MAX_VALUE - 1) + 1;
+      productData.setProductId(newProductId);
 
-    // Generate random productId (positive 32-bit int)
-    int newProductId = random.nextInt(Integer.MAX_VALUE - 1) + 1;
+      StoreProductRequest requestBody = new StoreProductRequest(
+              productData.getProductId(),
+              productData.getSku(),
+              productData.getManufacturer(),
+              productData.getCategoryId(),
+              productData.getSomeOtherId()
+      );
+      try {
 
-    // Set the generated product_id on the Product object
-    productData.setProductId(newProductId);
+          String json = objectMapper.writeValueAsString(requestBody);
+
+          System.out.println("JSON-------------");
+          System.out.println(json);
+
+          HttpRequest httpRequest = HttpRequest.newBuilder()
+                  .uri(URI.create(productDbUrl+"/product"))
+                  .header("Content-Type", "application/json")
+                  .POST(HttpRequest.BodyPublishers.ofString(json))
+                  .build();
+
+          HttpResponse<String> response =
+                  httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString());
+
+          System.out.println(response.body());
+
+          if (response.statusCode() == 201) {
+              System.out.println("Created");
+          } else {
+              System.out.println("Error: " + response.statusCode());
+          }
+      } catch (IOException | InterruptedException e) {
+          e.printStackTrace();
+      }
+
 
     return ResponseEntity.status(HttpStatus.CREATED).body(productData);
   }

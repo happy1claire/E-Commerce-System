@@ -4,15 +4,15 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 
 public class Product {
   @JsonProperty("product_id")
-  private Integer productId;
+  private int productId;
   private String sku;
   private String manufacturer;
   @JsonProperty("category_id")
-  private Integer categoryId;
-  private Integer weight;
+  private int categoryId;
+  private int weight;
   // in grams as per YAML
   @JsonProperty("some_other_id")
-  private Integer someOtherId;
+  private int someOtherId;
 
   // Default constructor
   public Product() {}
