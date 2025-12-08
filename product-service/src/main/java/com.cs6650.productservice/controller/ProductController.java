@@ -1,5 +1,6 @@
 package com.cs6650.productservice.controller;
 
+
 import com.cs6650.productservice.model.Product;
 import com.cs6650.productservice.model.StoreProductRequest;
 
@@ -49,14 +50,64 @@ public class ProductController {
     }
 
     log.info("Request to get product with ID: {}", productId);
-    Product product = new Product();
-    product.setProductId(productId);
-    product.setSku("ABC123XYZ");
-    product.setManufacturer("Acme Corporation");
-    product.setCategoryId(4568);
-    product.setWeight(1250);
-    product.setSomeOtherId(789);
-    return ResponseEntity.ok(product);
+
+    try{
+        HttpRequest request = HttpRequest.newBuilder(
+                URI.create(productDbUrl + "/get/" + productId))
+                .GET()
+                .build();
+        HttpResponse<String> response = httpClient
+                .send(request, HttpResponse.BodyHandlers.ofString());
+
+        int statusCode = response.statusCode();
+        String body = response.body();
+
+        log.info("ProductDB GET response status: {}, body: {}", statusCode, body);
+
+        if (statusCode == 404) {
+            Map<String, Object> error = new HashMap<>();
+            error.put("error", "PRODUCT_NOT_FOUND");
+            error.put("message", "Product with id " + productId + " not found");
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
+        }
+
+        if (statusCode != 200) {
+            Map<String, Object> error = new HashMap<>();
+            error.put("error", "PRODUCT_DB_ERROR");
+            error.put("message", "ProductDB returned status " + statusCode);
+            error.put("downstreamResponse", body);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+        }
+
+        System.out.println("BODY: ");
+        System.out.println(body);
+
+        System.out.println(objectMapper.readTree(body).get("product").toString());
+
+        Product product = objectMapper.treeToValue(objectMapper.readTree(body).get("product"), Product.class);
+        return ResponseEntity.ok(product);
+    }catch (IOException e) {
+        log.error("IO error when calling ProductDB", e);
+        Map<String, Object> error = new HashMap<>();
+        error.put("error", "IO_EXCEPTION");
+        error.put("message", "I/O error when calling ProductDB");
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+    } catch (InterruptedException e) {
+        log.error("Request to ProductDB was interrupted", e);
+        Thread.currentThread().interrupt();  // 恢復 interrupted 狀態
+        Map<String, Object> error = new HashMap<>();
+        error.put("error", "INTERRUPTED");
+        error.put("message", "Request to ProductDB was interrupted");
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+    }
+
+//    product.setProductId(productId);
+//    product.setSku("ABC123XYZ");
+//    product.setManufacturer("Acme Corporation");
+//    product.setCategoryId(4568);
+//    product.setWeight(1250);
+//    product.setSomeOtherId(789);
+
   }
 
 
@@ -76,10 +127,10 @@ public class ProductController {
     }
       // Generate random productId (positive 32-bit int)
       int newProductId = random.nextInt(Integer.MAX_VALUE - 1) + 1;
-      productData.setProductId(newProductId);
+      productData.setId(newProductId);
 
       StoreProductRequest requestBody = new StoreProductRequest(
-              productData.getProductId(),
+              productData.getId(),
               productData.getSku(),
               productData.getManufacturer(),
               productData.getCategoryId(),

@@ -3,11 +3,11 @@ package com.cs6650.productservice.model;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 public class Product {
-  @JsonProperty("product_id")
-  private int productId;
+  @JsonProperty("id")
+  private int id;
   private String sku;
   private String manufacturer;
-  @JsonProperty("category_id")
+  @JsonProperty("categoryId")
   private int categoryId;
   private int weight;
   // in grams as per YAML
@@ -18,9 +18,9 @@ public class Product {
   public Product() {}
 
   // Constructor with all fields
-  public Product(Integer productId, String sku, String manufacturer,
+  public Product(Integer id, String sku, String manufacturer,
       Integer categoryId, Integer weight, Integer someOtherId) {
-    this.productId = productId;
+    this.id = id;
     this.sku = sku;
     this.manufacturer = manufacturer;
     this.categoryId = categoryId;
@@ -29,8 +29,8 @@ public class Product {
   }
 
   // Getters and Setters
-  public Integer getProductId() { return productId; }
-  public void setProductId(Integer productId) { this.productId = productId; }
+  public Integer getId() { return id; }
+  public void setId(Integer productId) { this.id = productId; }
 
   public String getSku() { return sku; }
   public void setSku(String sku) { this.sku = sku; }
