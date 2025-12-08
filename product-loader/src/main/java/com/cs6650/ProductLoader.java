@@ -1,5 +1,7 @@
 package com.cs6650;
 
+import com.cs6650.ProductGenerator;
+import com.cs6650.Model.Product;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -11,7 +13,7 @@ public class ProductLoader {
      * The endpoint URL used to create a new random product on the Product Service.
      */
     private static final String PRODUCT_SERVICE_RANDOM_URL =
-            "http://localhost:8081/products/random";
+            "http://localhost:8080/product";
 
     /**
      * Total number of products to preload.
@@ -34,11 +36,12 @@ public class ProductLoader {
         HttpClient client = HttpClient.newHttpClient();
 
         for (int i = 1; i <= NUM_PRODUCTS; i++) {
-
+            Product product = ProductGenerator.generateProduct();
+            String jsonBody = toJson(product);
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(PRODUCT_SERVICE_RANDOM_URL))
-                    // no request body required for random product generation
-                    .POST(HttpRequest.BodyPublishers.noBody())
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
                     .build();
 
             try {
@@ -49,6 +52,7 @@ public class ProductLoader {
                     System.out.printf("Failed at %d: status=%d, body=%s%n", i, response.statusCode(), response.body());
                 }
                 if(i % 100 == 0){
+                    System.out.println(product.getId());
                     System.out.println("Processed " + i + " of " + NUM_PRODUCTS + " products");
                 }
 
@@ -57,6 +61,16 @@ public class ProductLoader {
             }
         }
 
-//        System.out.println("Complete loading: loaded " + NUM_PRODUCTS + " products.");
+    }
+    //helper
+    private static String toJson(Product p) {
+        return "{"
+                + "\"id\":" + p.getId() + ","
+                + "\"sku\":\"" + p.getSku() + "\","
+                + "\"manufacturer\":\"" + p.getManufacturer() + "\","
+                + "\"categoryId\":" + p.getCategoryId() + ","
+                + "\"weight\":" + p.getWeight() + ","
+                + "\"someOtherId\":" + p.getSomeOtherId()
+                + "}";
     }
 }

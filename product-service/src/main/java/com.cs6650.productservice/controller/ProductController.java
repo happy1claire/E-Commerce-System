@@ -89,8 +89,8 @@ public class ProductController {
 
           String json = objectMapper.writeValueAsString(requestBody);
 
-          System.out.println("JSON-------------");
-          System.out.println(json);
+//          System.out.println("JSON-------------");
+//          System.out.println(json);
 
           HttpRequest httpRequest = HttpRequest.newBuilder()
                   .uri(URI.create(productDbUrl+"/product"))
