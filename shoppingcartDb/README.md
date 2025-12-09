@@ -16,6 +16,66 @@ propagation.read.quorum=3   # R value
 propagation.write.quorum=3  # W value
 ```
 
+## Payload Format (Shoppingcart)
+
+Your distributed database stores Shoppingcart objects.
+```json
+{
+  "customerId": "userA",
+  "shoppingcartId": "cart-001",
+  "items": {
+    "1": 2,
+    "5": 3,
+    "8": 10
+  }
+}
+```
+
+## Controller Overview
+
+Your system exposes four main endpoints from ShoppingcartDbController:
+
+---
+
+### 1. `GET /get/{customerId}` — Quorum Read (R = 3)
+- Reads shopping cart data from multiple replicas
+- Selects the latest version across responses
+- May return **504 Gateway Timeout** if quorum fails
+- **Response includes:**
+    - `shoppingcartId`
+    - `items` (map of itemId → quantity)
+    - `version`
+    - `timestamp`
+
+---
+
+### 2. `POST /item/{customerId}` — Write / Update Shoppingcart (W = 3)
+- Creates or updates a shopping cart
+- Applies write locally
+- Propagates update to peer replicas
+- Write is successful only if **W = 3** replicas acknowledge
+- **Returns:**
+    - updated `items`
+    - `version`
+    - `timestamp`
+
+---
+
+### 3. `POST /propagate` — Internal API
+- Used for replication between nodes
+- A follower applies the update only if the received version is newer
+- Ensures eventual consistency across replicas
+
+---
+
+### 4. `GET /local_read/{customerId}` — Local Debug Read
+- Returns the value stored on the local node only
+- Does **not** use quorum
+- Useful for checking:
+    - whether propagation succeeded
+    - local version
+    - local timestamp
+
 ## How to Run?
 
 Step 1: Run Your 5 Spring Boot Instances
