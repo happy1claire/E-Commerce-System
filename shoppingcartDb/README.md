@@ -16,7 +16,7 @@ propagation.read.quorum=3   # R value
 propagation.write.quorum=3  # W value
 ```
 
-## Payload Format (Shoppingcart)
+## Format (Shoppingcart)
 
 Your distributed database stores Shoppingcart objects.
 ```json
@@ -37,7 +37,7 @@ Your system exposes four main endpoints from ShoppingcartDbController:
 
 ---
 
-### 1. `GET /get/{customerId}` — Quorum Read (R = 3)
+### 1. `GET /get/{cartId}` — Quorum Read (R = 3)
 - Reads shopping cart data from multiple replicas
 - Selects the latest version across responses
 - May return **504 Gateway Timeout** if quorum fails
@@ -49,7 +49,8 @@ Your system exposes four main endpoints from ShoppingcartDbController:
 
 ---
 
-### 2. `POST /item/{customerId}` — Write / Update Shoppingcart (W = 3)
+### 2. `POST /item/{cartId}` — Write / Update Shoppingcart (W = 3)
+- RequestBody ```HashMap<Integer, Integer>```
 - Creates or updates a shopping cart
 - Applies write locally
 - Propagates update to peer replicas
