@@ -49,7 +49,7 @@ Your system exposes four main endpoints from CustomerDbController:
 ---
 
 ### 2. `POST /customer/{customerId}` — Write / Update Customer (W = 3)
-- RequestBody ```java List<String> cartIds```
+- RequestBody ```List<String> cartIds```
 - Updates or creates a Customer
 - Applies write locally
 - Propagates to peer replicas
