@@ -2,6 +2,10 @@ package com.cs6650.warehouseservice.controller;
 
 import com.cs6650.warehouseservice.dto.ReserveRequest;
 import com.cs6650.warehouseservice.dto.ShipRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import com.cs6650.warehouseservice.service.DelaySimulatorService;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -10,7 +14,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Map;
 import org.springframework.http.HttpStatus;
-import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -18,7 +21,13 @@ import java.util.concurrent.ThreadLocalRandom;
 @RequestMapping("/warehouse")
 public class WarehouseController {
 
-    private final Random random = new Random();
+    private static final Logger logger = LoggerFactory.getLogger(WarehouseController.class);
+    private final DelaySimulatorService delaySimulator;
+
+    public WarehouseController(DelaySimulatorService delaySimulatorService) {
+        this.delaySimulator = delaySimulatorService;
+    }
+
 
     /**
      * Endpoint to reserve items from the warehouse.
@@ -27,7 +36,7 @@ public class WarehouseController {
     @PostMapping("/reserve")
     public ResponseEntity<?> reserve(@RequestBody ReserveRequest request) {
         // Simulate a random delay between 50ms and 200ms
-        simulateDelay(50, 200);
+        delaySimulator.simulateDelay();
 
         // Validate input
         if (request.getProductId() <= 0 || request.getQuantity() <= 0) {
@@ -35,23 +44,23 @@ public class WarehouseController {
         }
 
         // Randomly decide: 90% success (0-89), 10% failure (90-99)
-        boolean hasInventory = random.nextInt(100) < 90;
+        boolean hasInventory = ThreadLocalRandom.current().nextInt(100) < 90;
 
         if (hasInventory) {
-            System.out.println("Reserved product " + request.getProductId() + ", quantity: " + request.getQuantity());
+            logger.info("Reserved product {}, quantity: {}", request.getProductId(), request.getQuantity());
             return ResponseEntity.ok(Map.of(
-                    "message", "Inventory reserved",
-                    "productId", request.getProductId(),
-                    "quantity", request.getQuantity(),
-                    "reserved", true
+                "message", "Inventory reserved",
+                "productId", request.getProductId(),
+                "quantity", request.getQuantity(),
+                "reserved", true
             ));
         } else {
-            System.out.println("Failed to reserve product " + request.getProductId() + ", quantity: " + request.getQuantity() + ". Not enough stock.");
+            logger.warn("Failed to reserve product {}, quantity: {}. Not enough stock.", request.getProductId(), request.getQuantity());
             return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(
-                    "message", "Insufficient inventory",
-                    "productId", request.getProductId(),
-                    "quantity", request.getQuantity(),
-                    "reserved", false
+                "message", "Insufficient inventory",
+                "productId", request.getProductId(),
+                "quantity", request.getQuantity(),
+                "reserved", false
             ));
         }
     }
@@ -63,7 +72,7 @@ public class WarehouseController {
     @PostMapping("/ship")
     public ResponseEntity<?> ship(@RequestBody ShipRequest request) {
         // Simulate a random delay between 100ms and 500ms
-        simulateDelay(100, 500);
+        delaySimulator.simulateDelay();
 
         // Validate input
         if (request.getProductId() <= 0 || request.getQuantity() <= 0) {
@@ -72,23 +81,24 @@ public class WarehouseController {
 
         // 100% success rate
         // Just log and return success
-        System.out.println("Shipping product " + request.getProductId() +
-                ", quantity: " + request.getQuantity());
+        logger.info("Shipping product {}, quantity: {}", request.getProductId(), request.getQuantity());
 
         return ResponseEntity.ok(Map.of(
-                "message", "Shipment successful",
-                "productId", request.getProductId(),
-                "quantity", request.getQuantity(),
-                "shipped", true,
-                "trackingNumber", UUID.randomUUID().toString()
+            "message", "Shipment successful",
+            "productId", request.getProductId(),
+            "quantity", request.getQuantity(),
+            "shipped", true,
+            "trackingNumber", UUID.randomUUID().toString()
         ));
     }
 
-    private void simulateDelay(long min, long max) {
-        try {
-            Thread.sleep(ThreadLocalRandom.current().nextLong(min, max));
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
+    /**
+     * Health check endpoint.
+     * Returns a 200 OK status to indicate the service is running.
+     */
+    @GetMapping("/health")
+    public ResponseEntity<Map<String, String>> healthCheck() {
+        // A simple health check that returns status "UP"
+        return ResponseEntity.ok(Map.of("status", "UP"));
     }
 }
