@@ -11,7 +11,7 @@ import org.springframework.beans.factory.annotation.Value;
 
 @Service
 public class ShoppingcartStore {
-  /** ConcurrentHashMap<String CustomerId, VersionedValue>*/
+  /** ConcurrentHashMap<String CartId, VersionedValue>*/
   private final ConcurrentHashMap<String, VersionedValue> carts = new ConcurrentHashMap<>();
 
 //  /** ConcurrentHashMap<String CustomerId, CartId>*/

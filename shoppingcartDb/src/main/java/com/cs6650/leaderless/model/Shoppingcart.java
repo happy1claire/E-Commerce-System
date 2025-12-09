@@ -9,6 +9,7 @@ import java.util.HashMap;
 @Setter
 public class Shoppingcart {
     private String customerId;
+    private String shoppingcartId;
     private HashMap<Integer, Integer> items;
 
     public Shoppingcart() {}
