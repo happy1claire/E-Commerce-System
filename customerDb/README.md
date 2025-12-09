@@ -35,36 +35,43 @@ Each customer contains:
 
 Your system exposes four main endpoints from CustomerDbController:
 
-1. GET /get/{customerId} — Quorum Read (R = 3)
-   •	Contacts multiple replicas
-   •	Selects the newest version based on version number
-   •	May return 504 if quorum cannot be achieved
-   •	Response includes:
-   •	shoppingcartIds
-   •	version
-   •	timestamp
+---
 
+### 1. `GET /get/{customerId}` — Quorum Read (R = 3)
+- Contacts multiple replicas
+- Selects the newest version based on version number
+- May return **504 Gateway Timeout** if quorum cannot be achieved
+- **Response includes:**
+   - `shoppingcartIds`
+   - `version`
+   - `timestamp`
 
-2. POST /customer/{customerId} — Write / Update Customer (W = 3)
-   •	Updates or creates a Customer
-   •	Applies write locally
-   •	Propagates to peers
-   •	Commit succeeds only if write quorum met
-   •	Returns updated version + timestamp
+---
 
+### 2. `POST /customer/{customerId}` — Write / Update Customer (W = 3)
+- Updates or creates a Customer
+- Applies write locally
+- Propagates to peer replicas
+- Commit succeeds only if **write quorum (W = 3)** is met
+- **Returns:**
+   - updated version
+   - timestamp
 
-3. POST /propagate — Internal API (used by nodes)
-   •	Accepts a propagated update from another replica
-   •	Applies update only if version is newer
-   •	Ensures eventual consistency
+---
 
+### 3. `POST /propagate` — Internal API (used by nodes)
+- Accepts a propagated update from another replica
+- Applies update only if the incoming version is newer
+- Ensures eventual consistency across all replicas
 
-4. GET /local_read/{customerId} — Local Debug Read
-   •	Reads directly from the local store (no quorum)
-   •	Helps verify:
-   •	version
-   •	timestamp
-   •	whether propagation succeeded
+---
+
+### 4. `GET /local_read/{customerId}` — Local Debug Read
+- Reads value directly from the local store (no quorum)
+- Useful for checking:
+   - version
+   - timestamp
+   - whether propagation succeeded
 
 ## How to Run?
 
