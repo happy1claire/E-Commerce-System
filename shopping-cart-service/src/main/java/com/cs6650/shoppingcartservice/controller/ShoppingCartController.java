@@ -49,7 +49,7 @@ public class ShoppingCartController {
      */
     @PostMapping("/{cartId}/items")
     public ResponseEntity<Map<String, Integer>> addToCart(@PathVariable String cartId,
-            @RequestParam String itemId,
+            @RequestParam int itemId,
             @RequestParam int quantity) {
 
         model.addToCart(cartId, itemId, quantity);
@@ -99,7 +99,7 @@ public class ShoppingCartController {
         // randomly generate 1-3 items, with itemId "SKUxxx" and quantity between 1-100
         int itemCount = (int) (Math.random() * 3) + 1;
         for (int i = 0; i < itemCount; i++) {
-            String itemId = String.format("SKU%03d", (int) (Math.random() * 10 + 1));
+            int itemId = String.format("SKU%03d", (int) (Math.random() * 10 + 1));
             int quantity = (int) (Math.random() * 100) + 1;
             model.addToCart(cartId, itemId, quantity);
         }

@@ -23,7 +23,7 @@ public class ShoppingCartModel {
     // customerId -> cartId
     private final Map<String, String> cartIdByCustomer = new ConcurrentHashMap<>();
     // cartId -> (itemId -> quantity)
-    private final Map<String, Map<String, Integer>> cartItems = new ConcurrentHashMap<>();
+    private final Map<String, Map<Integer, Integer>> cartItems = new ConcurrentHashMap<>();
     // Randomly generate IDs
     private static final SecureRandom RAND = new SecureRandom();
     // ObjectMapper to convert our order object to a JSON string
@@ -57,7 +57,7 @@ public class ShoppingCartModel {
     /**
      * Add items with quantities to the cart
      */
-    public void addToCart(String cartId, String itemId, int quantity) {
+    public void addToCart(String cartId, int itemId, int quantity) {
         if (cartId == null || itemId == null) {
             throw new IllegalArgumentException("cartId/itemId must not be null");
         }
@@ -150,12 +150,12 @@ public class ShoppingCartModel {
 
         // 2. Reserve inventory for each item
         for (Map.Entry<String, Integer> entry : items.entrySet()) {
-            String itemId = entry.getKey();      // e.g. "SKU001"
+            int itemId = entry.getKey();      // e.g. "SKU001"
             int quantity = entry.getValue();
 
-            long productId = parseSkuToProductId(itemId); // convert "SKU001" -> 1
+//            long productId = parseSkuToProductId(itemId); // convert "SKU001" -> 1
 
-            boolean reserved = warehouseService.reserve(productId, quantity);
+            boolean reserved = warehouseService.reserve(itemId, quantity);
             if (!reserved) {
                 // Fail fast if any item cannot be reserved
                 throw new IllegalStateException("Not enough inventory for itemId: " + itemId);
@@ -173,12 +173,12 @@ public class ShoppingCartModel {
 
         // 4. Ship all items
         for (Map.Entry<String, Integer> entry : items.entrySet()) {
-            String itemId = entry.getKey();
+            int itemId = entry.getKey();
             int quantity = entry.getValue();
 
-            long productId = parseSkuToProductId(itemId);
+//            long productId = parseSkuToProductId(itemId);
 
-            boolean shipped = warehouseService.ship(productId, quantity);
+            boolean shipped = warehouseService.ship(itemId, quantity);
             if (!shipped) {
                 // For this assignment, shipping is always successful.
                 // In a real system, you might log or compensate here.
