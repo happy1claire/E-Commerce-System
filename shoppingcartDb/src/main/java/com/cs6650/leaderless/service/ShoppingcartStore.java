@@ -59,6 +59,13 @@ public class ShoppingcartStore {
 
   // write if newer (or absent)
   public void putIfNewer(String key, Shoppingcart shoppingcart, long version) throws InterruptedException {
+    // Extract counter from incoming version
+    long incomingCounter = version >>> 16;
+
+    // Raise local counter if remote counter is higher (Lamport merge)
+    versionCounter.updateAndGet(cur -> Math.max(cur, incomingCounter));
+
+    // Accept only if version is newer
     carts.compute(key, (k, existing) -> {
       if (existing == null || version > existing.getVersion()) {
         return new VersionedValue(shoppingcart, version, System.currentTimeMillis());
