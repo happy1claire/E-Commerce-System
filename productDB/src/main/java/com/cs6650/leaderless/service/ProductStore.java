@@ -8,13 +8,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Value;
 
 @Service
-public class KVStore {
-  private final ConcurrentHashMap<String, VersionedValue> store = new ConcurrentHashMap<>();
+public class ProductStore {
+  private final ConcurrentHashMap<Integer, VersionedValue> productStorage = new ConcurrentHashMap<>();
 
   private final AtomicLong versionCounter = new AtomicLong(0);
   private final int nodeId;
 
-  public KVStore(@Value("${server.port}") int port) {
+  public ProductStore(@Value("${server.port}") int port) {
     // A simple way to get a unique node ID from the port (e.g., 8081 -> 81)
     // This assumes ports are in a reasonable range where this is unique.
     this.nodeId = port % 1000;
@@ -28,13 +28,13 @@ public class KVStore {
     return (counter << 16) | nodeId;
   }
 
-  public VersionedValue get(String key) {
-    return store.get(key);
+  public VersionedValue get(Integer key) {
+    return productStorage.get(key);
   }
 
   // write if newer (or absent)
-  public void putIfNewer(String key, Product product, long version) throws InterruptedException {
-    store.compute(key, (k, existing) -> {
+  public void putIfNewer(Integer key, Product product, long version) throws InterruptedException {
+    productStorage.compute(key, (k, existing) -> {
       if (existing == null || version > existing.getVersion()) {
         return new VersionedValue(product, version, System.currentTimeMillis());
       } else {
@@ -44,7 +44,7 @@ public class KVStore {
   }
 
   // local immediate write (Coordinator writes first)
-  public void writeLocal(String key, Product product, long version) {
-    store.put(key, new VersionedValue(product, version, System.currentTimeMillis()));
+  public void writeLocal(Integer key, Product product, long version) {
+    productStorage.put(key, new VersionedValue(product, version, System.currentTimeMillis()));
   }
 }

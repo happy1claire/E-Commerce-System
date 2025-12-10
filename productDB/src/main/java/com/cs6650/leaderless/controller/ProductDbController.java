@@ -3,13 +3,13 @@ package com.cs6650.leaderless.controller;
 import com.cs6650.leaderless.model.Product;
 import com.cs6650.leaderless.model.PropagateRequest;
 import com.cs6650.leaderless.model.VersionedValue;
-import com.cs6650.leaderless.service.KVStore;
+import com.cs6650.leaderless.service.ProductStore;
 import com.cs6650.leaderless.service.PropagationService;
+import com.cs6650.leaderless.util.Transaction;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
-
 import java.util.Map;
 
 /**
@@ -20,7 +20,7 @@ import java.util.Map;
 @RestController
 public class ProductDbController {
 
-  private final KVStore kvStore;
+  private final ProductStore productStorage;
   private final PropagationService propagationService;
 
   @Value("${propagation.timeout.ms}")
@@ -29,12 +29,12 @@ public class ProductDbController {
   /**
    * Constructs a new {@code LeaderlessController} with dependencies injected.
    *
-   * @param kvStore             the key-value store handling local reads/writes
+   * @param productStorage      the key-value store handling local reads/writes
    * @param propagationService  the service responsible for propagating updates to peers
    */
   @Autowired
-  public ProductDbController(KVStore kvStore, PropagationService propagationService) {
-    this.kvStore = kvStore;
+  public ProductDbController(ProductStore productStorage, PropagationService propagationService) {
+    this.productStorage = productStorage;
     this.propagationService = propagationService;
   }
 
@@ -51,19 +51,20 @@ public class ProductDbController {
    */
   @PostMapping("/product")
   public ResponseEntity<?> addProduct(@RequestBody Product product) {
-    String key = product.getId();
+    Integer key = product.getId();
 
-    if (key == null || key.isEmpty()) return ResponseEntity.badRequest().body("Key must not be empty");
+    Transaction.begin();
 
     // increment version and write locally
-    long version = kvStore.nextVersion();
-    kvStore.writeLocal(key, product, version);
+    long version = productStorage.nextVersion();
+    productStorage.writeLocal(key, product, version);
 
     // propagate to peers (W = N)
     boolean ok = propagationService.propagateToAll(key, product, version, propagationTimeoutMs);
 
     if (ok) {
-      VersionedValue stored = kvStore.get(key);
+      Transaction.commit();
+      VersionedValue stored = productStorage.get(key);
       return ResponseEntity.status(HttpStatus.CREATED).body(
               Map.of(
                       "product", stored.getProduct(),
@@ -71,6 +72,7 @@ public class ProductDbController {
                       "timestamp", stored.getTimestamp()
               ));
     } else {
+      Transaction.abort();
       return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
               .body("Failed to propagate to all peers");
     }
@@ -85,26 +87,31 @@ public class ProductDbController {
    * @return 200 OK with updated version info, or 404 if not found
    */
   @PutMapping("/product/{id}")
-  public ResponseEntity<?> updateProduct(@PathVariable String id, @RequestBody Product product) {
-    if (id == null || id.isEmpty()) {
+  public ResponseEntity<?> updateProduct(@PathVariable Integer id, @RequestBody Product product) {
+    Transaction.begin();
+
+    if (id == null) {
+      Transaction.abort();
       return ResponseEntity.badRequest().body("ID must not be empty");
     }
 
     // Ensure ID matches payload
     product.setId(id);
 
-    VersionedValue existing = kvStore.get(id);
+    VersionedValue existing = productStorage.get(id);
     if (existing == null) {
+      Transaction.abort();
       return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Product not found");
     }
 
-    long version = kvStore.nextVersion();
-    kvStore.writeLocal(id, product, version);
+    long version = productStorage.nextVersion();
+    productStorage.writeLocal(id, product, version);
 
     boolean ok = propagationService.propagateToAll(id, product, version, propagationTimeoutMs);
 
     if (ok) {
-      VersionedValue stored = kvStore.get(id);
+      Transaction.commit();
+      VersionedValue stored = productStorage.get(id);
       return ResponseEntity.ok(
           Map.of(
               "product", stored.getProduct(),
@@ -113,6 +120,7 @@ public class ProductDbController {
           )
       );
     } else {
+      Transaction.abort();
       return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
               .body("Failed to propagate to all peers");
     }
@@ -130,14 +138,14 @@ public class ProductDbController {
    */
   @PostMapping("/propagate")
   public ResponseEntity<?> propagate(@RequestBody PropagateRequest request) throws InterruptedException {
-    String key = request.getKey();
+    Integer key = request.getKey();
     Product product = request.getProduct();
     long version = request.getVersion();
 
     // write if newer
-    VersionedValue current = kvStore.get(key);
+    VersionedValue current = productStorage.get(key);
     if (current == null || version > current.getVersion()) {
-      kvStore.putIfNewer(key, product, version);
+      productStorage.putIfNewer(key, product, version);
     }
 
     return ResponseEntity.ok().build();
@@ -155,8 +163,8 @@ public class ProductDbController {
    * @throws InterruptedException if future read delays are simulated
    */
   @GetMapping("/get/{key}")
-  public ResponseEntity<?> lookUpProduct(@PathVariable String key) throws InterruptedException {
-    VersionedValue v = kvStore.get(key);
+  public ResponseEntity<?> lookUpProduct(@PathVariable Integer key) throws InterruptedException {
+    VersionedValue v = productStorage.get(key);
     if (v == null) return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
 
     // For simulation, follower read delay is not necessary here since this is leaderless,
@@ -180,8 +188,8 @@ public class ProductDbController {
    *         {@code 404 Not Found} if the key does not exist locally
    */
   @GetMapping("/local_read/{key}")
-  public ResponseEntity<?> localRead(@PathVariable String key) {
-    VersionedValue v = kvStore.get(key);
+  public ResponseEntity<?> localRead(@PathVariable Integer key) {
+    VersionedValue v = productStorage.get(key);
     if (v == null) return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
     return ResponseEntity.ok(Map.of("product", v.getProduct(), "version", v.getVersion(), "timestamp", v.getTimestamp()));
   }

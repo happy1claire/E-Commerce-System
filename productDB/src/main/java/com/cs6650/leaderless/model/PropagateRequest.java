@@ -6,7 +6,7 @@ import lombok.Setter;
 @Getter
 @Setter
 public class PropagateRequest {
-    private String key;
+    private Integer key;
     private Product product;
     private long version;
 }
