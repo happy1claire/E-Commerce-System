@@ -99,7 +99,7 @@ public class ShoppingCartController {
         // randomly generate 1-3 items, with itemId "SKUxxx" and quantity between 1-100
         int itemCount = (int) (Math.random() * 3) + 1;
         for (int i = 0; i < itemCount; i++) {
-            int itemId = String.format("SKU%03d", (int) (Math.random() * 10 + 1));
+            int itemId = Math.random() * 5 + 1;
             int quantity = (int) (Math.random() * 100) + 1;
             model.addToCart(cartId, itemId, quantity);
         }
