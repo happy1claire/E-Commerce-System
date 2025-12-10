@@ -23,7 +23,7 @@ public class ShoppingCartModel {
     // customerId -> cartId
     private final Map<String, String> cartIdByCustomer = new ConcurrentHashMap<>();
     // cartId -> (itemId -> quantity)
-    private final Map<String, Map<Integer, Integer>> cartItems = new ConcurrentHashMap<>();
+    private final Map<String, Map<String, Integer>> cartItems = new ConcurrentHashMap<>();
     // Randomly generate IDs
     private static final SecureRandom RAND = new SecureRandom();
     // ObjectMapper to convert our order object to a JSON string
@@ -31,15 +31,13 @@ public class ShoppingCartModel {
 
     private final CreditCardAuthService authService;
     private final WarehouseService warehouseService;
-    /**
-     * Base URL for the Customer DB service (leaderless KV store).
-     * Example:
-     *   customer.db.base-url=http://localhost:8080
-     *
-     * Declared in Shopping Cart Service's application.properties.
-     */
+
     @Value("${customer.db.base-url:http://localhost:8080}")
     private String customerDbBaseUrl;
+
+    @Value("${shoppingCart.db.base-url:http://localhost:8080}")
+    private String shoppingCartDbBaseUrl;
+
 
     /**
      * RestTemplate for making HTTP calls to the Customer DB nodes.
@@ -58,35 +56,46 @@ public class ShoppingCartModel {
      * Add items with quantities to the cart
      */
     public void addToCart(String cartId, int itemId, int quantity) {
-        if (cartId == null || itemId == null) {
-            throw new IllegalArgumentException("cartId/itemId must not be null");
+        if (cartId == null) {
+            throw new IllegalArgumentException("cartId must not be null");
         }
         if (quantity < 1 || quantity > 10_000) {
             throw new IllegalArgumentException("quantity must be between 1 and 10000");
         }
 
-        // Find cartId or generate cartId
-//        String cartId = findCartIdByCustomer(customerId);
+        // Load existing items from DB: Map<itemId, quantity>
+        Map<Integer, Integer> items = loadCartItemsFromDb(cartId);
+        System.out.println("original existing items: " + items);
 
-        // Extract Cart Items and their quantities; create if the cart is absent
-        Map<String, Integer> itemsWithQuantity = cartItems.computeIfAbsent(cartId, id -> new ConcurrentHashMap<>());
+        // Merge quantity (add to existing if present)
+        items.merge(itemId, quantity, Integer::sum);
+        System.out.println("items after merge: " + items);
 
-        // If an item is already in the cart, sum up; otherwise put quantity
-        itemsWithQuantity.merge(itemId, quantity, Integer::sum);
+        // Save back to DB
+        saveCartItemsToDb(cartId, items);
     }
+
 
 
     /**
      * Get or generate customer's cartId
      */
     public String findCartIdByCustomer(String customerId) {
-        String existing = cartIdByCustomer.get(customerId);
-        if (existing != null)
-            return existing;
+        // 1. Check local cache
+        String cached = cartIdByCustomer.get(customerId);
+        if (cached != null) {
+            return cached;
+        }
 
-        String newCartId = UUID.randomUUID().toString().replace("-", "").substring(0, 10);
-        cartItems.putIfAbsent(newCartId, new ConcurrentHashMap<>());
-        cartIdByCustomer.put(customerId, newCartId);
+        // 2. Try to read from Customer DB
+        String existing = fetchCartIdFromDb(customerId);
+        if (existing != null && !existing.isEmpty()) {
+            cartIdByCustomer.put(customerId, existing);
+            return existing;
+        }
+
+        // 3. No cartId in DB; create and persist a new one
+        String newCartId = createAndPersistCartId(customerId);
         return newCartId;
     }
 
@@ -101,24 +110,25 @@ public class ShoppingCartModel {
      * Get the items in the cart.
      * Returns an immutable empty map if cart does not exist.
      */
-    public Map<String, Integer> getCartItems(String cartId) {
-        return cartItems.getOrDefault(cartId, Map.of());
+    public Map<Integer, Integer> getCartItems(String cartId) {
+        return loadCartItemsFromDb(cartId);
     }
 
     /**
      * Get cartId and cartItems.
      */
     public String getCartIdAndItems(String cartId) {
-        Map<String, Integer> itemsMap = cartItems.getOrDefault(cartId, Map.of());
+        Map<Integer, Integer> itemsMap = getCartItems(cartId);
+
         List<Map<String, Object>> itemList = itemsMap.entrySet().stream()
                 .map(entry -> {
-                    // Create a map for each item
                     Map<String, Object> itemAsMap = new HashMap<>();
-                    itemAsMap.put("productId", entry.getKey());
+                    itemAsMap.put("productId", entry.getKey());   // integer
                     itemAsMap.put("quantity", entry.getValue());
                     return itemAsMap;
                 })
                 .collect(Collectors.toList());
+
         Map<String, Object> resultStructure = new HashMap<>();
         resultStructure.put("cartId", cartId);
         resultStructure.put("items", itemList);
@@ -141,44 +151,42 @@ public class ShoppingCartModel {
             throw new IllegalArgumentException("cartId must not be null");
         }
 
-
-        // 1. Retrieve items from the cart: Map<itemId(SKUxxx), quantity>
-        Map<String, Integer> items = getCartItems(cartId);
+        // 1. Retrieve items from the cart using the DB-backed method
+        Map<Integer, Integer> items = getCartItems(cartId);
         if (items == null || items.isEmpty()) {
             throw new IllegalArgumentException("Cart is empty for cartId: " + cartId);
         }
 
         // 2. Reserve inventory for each item
-        for (Map.Entry<String, Integer> entry : items.entrySet()) {
-            int itemId = entry.getKey();      // e.g. "SKU001"
+        for (Map.Entry<Integer, Integer> entry : items.entrySet()) {
+            int itemId = entry.getKey();        // e.g. 1
             int quantity = entry.getValue();
 
-//            long productId = parseSkuToProductId(itemId); // convert "SKU001" -> 1
+            long productId = itemId;           // itemId already represents the product ID
 
-            boolean reserved = warehouseService.reserve(itemId, quantity);
+            boolean reserved = warehouseService.reserve(productId, quantity);
             if (!reserved) {
                 // Fail fast if any item cannot be reserved
                 throw new IllegalStateException("Not enough inventory for itemId: " + itemId);
             }
         }
 
-
         // credit card must match the format 1234-5678-9012-3456
         if (!creditCardNumber.matches("\\d{4}-\\d{4}-\\d{4}-\\d{4}")) {
             throw new IllegalArgumentException("creditCardNumber format invalid");
         }
 
-        // 3. Authorize payment (you already have this service in your assignment)
+        // 3. Authorize payment
         authService.authorize(creditCardNumber);
 
         // 4. Ship all items
-        for (Map.Entry<String, Integer> entry : items.entrySet()) {
+        for (Map.Entry<Integer, Integer> entry : items.entrySet()) {
             int itemId = entry.getKey();
             int quantity = entry.getValue();
 
-//            long productId = parseSkuToProductId(itemId);
+            long productId = itemId;   // itemId already is the product ID
 
-            boolean shipped = warehouseService.ship(itemId, quantity);
+            boolean shipped = warehouseService.ship(productId, quantity);
             if (!shipped) {
                 // For this assignment, shipping is always successful.
                 // In a real system, you might log or compensate here.
@@ -187,23 +195,6 @@ public class ShoppingCartModel {
         }
     }
 
-    /**
-     * Converts an itemId in format "SKU001" into a numeric productId.
-     * Example:
-     *   "SKU001" -> 1
-     *   "SKU010" -> 10
-     */
-    private long parseSkuToProductId(String sku) {
-        if (sku == null || !sku.startsWith("SKU")) {
-            throw new IllegalArgumentException("Invalid SKU format: " + sku);
-        }
-        String numericPart = sku.substring(3);  // from index 3 to end, e.g. "001"
-        try {
-            return Long.parseLong(numericPart);
-        } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("Invalid SKU numeric part: " + sku, e);
-        }
-    }
 
     /**
      * Reads the cartId for a given customer from the Customer DB.
@@ -269,6 +260,7 @@ public class ShoppingCartModel {
         // Persist to Customer DB
         try {
             String url = customerDbBaseUrl + "/customer/" + customerId;
+            System.out.println(url);
             List<String> body = List.of(newCartId);
             restTemplate.postForEntity(url, body, Void.class);
         } catch (Exception e) {
@@ -283,6 +275,76 @@ public class ShoppingCartModel {
         return newCartId;
     }
 
-}
+    // =========================
+    //  Shoppingcart DB Helpers
+    // =========================
 
+    /**
+     * Loads cart items from the leaderless Shoppingcart DB for a given cartId.
+     *
+     * It calls:
+     *   GET {shoppingCartDbBaseUrl}/get/{cartId}
+     *
+     * Expected response:
+     *   {
+     *     "items": { "1": 2, "3": 5 },
+     *     "version": ...,
+     *     "timestamp": ...
+     *   }
+     *
+     * @param cartId the cart identifier
+     * @return a mutable map of productId -> quantity; empty map if not found or on errors
+     */
+    private Map<Integer, Integer> loadCartItemsFromDb(String cartId) {
+        try {
+            String url = shoppingCartDbBaseUrl + "/get/" + cartId;
+            ShoppingCartDbResponse response =
+                    restTemplate.getForObject(url, ShoppingCartDbResponse.class);
+
+            if (response == null || response.getItems() == null) {
+                return new HashMap<>();
+            }
+            return new HashMap<>(response.getItems());
+        } catch (HttpClientErrorException.NotFound e) {
+            // Cart record does not exist in the DB
+            return new HashMap<>();
+        } catch (Exception e) {
+            // For simplicity, treat any error as "no items"
+            return new HashMap<>();
+        }
+    }
+
+    /**
+     * Persists cart items into the leaderless Shoppingcart DB for a given cartId.
+     *
+     * It calls:
+     *   POST {shoppingCartDbBaseUrl}/item/{cartId}
+     * Body:
+     *   { "1": 2, "3": 5 }
+     *
+     * The DB returns the stored value including version and timestamp.
+     *
+     * @param cartId the cart identifier
+     * @param items  map of productId -> quantity to be stored
+     * @return the items actually stored in DB (may be the same as input)
+     */
+    private Map<Integer, Integer> saveCartItemsToDb(String cartId, Map<Integer, Integer> items) {
+        try {
+            String url = shoppingCartDbBaseUrl + "/item/" + cartId;
+            System.out.println("items passed to saveCartItemsToDb: " + items);
+
+            ShoppingCartDbResponse response =
+                    restTemplate.postForObject(url, items, ShoppingCartDbResponse.class);
+            System.out.println("response: " + response);
+
+            if (response != null && response.getItems() != null) {
+                return new HashMap<>(response.getItems());
+            }
+            return new HashMap<>(items);
+        } catch (Exception e) {
+            // In a real system you would log and propagate a proper error.
+            throw new IllegalStateException("Failed to save cart items to Shoppingcart DB", e);
+        }
+    }
+}
 
