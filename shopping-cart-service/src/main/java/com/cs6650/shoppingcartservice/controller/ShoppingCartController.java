@@ -26,8 +26,20 @@ public class ShoppingCartController {
      */
     @GetMapping("/by-customer/{customerId}")
     public Map<String, String> getOrCreateCartId(@PathVariable String customerId) {
-        String cartId = model.findCartIdByCustomer(customerId);
-        return Map.of("cartId", cartId);
+        // 1. Try to read an existing cartId for this customer from the Customer DB
+        String existingCartId = model.fetchCartIdFromDb(customerId);
+
+        // 2. If the DB already has a cartId, reuse it and return it to the client
+        if (existingCartId != null && !existingCartId.isEmpty()) {
+            return Map.of("cartId", existingCartId);
+        }
+
+        // 3. The DB has no cartId for this customer:
+        //    generate a new cartId and persist it in the Customer DB
+        String newCartId = model.createAndPersistCartId(customerId);
+
+        // Return the newly created cartId
+        return Map.of("cartId", newCartId);
     }
 
     /**

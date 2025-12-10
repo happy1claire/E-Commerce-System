@@ -12,6 +12,10 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.RestTemplate;
 
 @Service
 public class ShoppingCartModel {
@@ -27,7 +31,20 @@ public class ShoppingCartModel {
 
     private final CreditCardAuthService authService;
     private final WarehouseService warehouseService;
+    /**
+     * Base URL for the Customer DB service (leaderless KV store).
+     * Example:
+     *   customer.db.base-url=http://localhost:8080
+     *
+     * Declared in Shopping Cart Service's application.properties.
+     */
+    @Value("${customer.db.base-url:http://localhost:8080}")
+    private String customerDbBaseUrl;
 
+    /**
+     * RestTemplate for making HTTP calls to the Customer DB nodes.
+     */
+    private final RestTemplate restTemplate = new RestTemplate();
     /**
      * Constructor injection ensures that WarehouseService and CreditCardAuthService are provided.
      *
@@ -187,6 +204,85 @@ public class ShoppingCartModel {
             throw new IllegalArgumentException("Invalid SKU numeric part: " + sku, e);
         }
     }
+
+    /**
+     * Reads the cartId for a given customer from the Customer DB.
+     *
+     * It calls the leaderless customer service:
+     *   GET {customerDbBaseUrl}/get/{customerId}
+     *
+     * Expected response body:
+     *   {
+     *     "shoppingCartsIds": ["cartId1", "cartId2", ...],
+     *     "version": ...,
+     *     "timestamp": ...
+     *   }
+     *
+     * This method:
+     *   - Returns the first cartId in "shoppingCartsIds" if present.
+     *   - Returns null if the customer has no cartIds in the DB
+     *     or if the record does not exist.
+     */
+    public String fetchCartIdFromDb(String customerId) {
+        try {
+            String url = customerDbBaseUrl + "/get/" + customerId;
+            ResponseEntity<Map> response = restTemplate.getForEntity(url, Map.class);
+
+            if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
+                return null;
+            }
+
+            Object idsObj = response.getBody().get("shoppingCartsIds");
+            if (idsObj instanceof List<?> ids && !ids.isEmpty()) {
+                // Use the first cartId in the list
+                Object first = ids.get(0);
+                return first != null ? first.toString() : null;
+            }
+
+            return null;
+        } catch (HttpClientErrorException.NotFound e) {
+            // The customer record does not exist in the DB
+            return null;
+        } catch (Exception e) {
+            // For simplicity, treat any error as "no cartId in DB"
+            // You may want to log or rethrow depending on your needs
+            return null;
+        }
+    }
+
+    /**
+     * Generates a new cartId for the given customer, writes it to the Customer DB,
+     * and returns the new cartId.
+     *
+     * Steps:
+     * 1. Generate a new cartId.
+     * 2. Build a list of cartIds (currently just one).
+     * 3. Call the leaderless customer service:
+     *    POST {customerDbBaseUrl}/customer/{customerId}
+     *    Body: ["newCartId"]
+     * 4. Optionally cache the mapping in memory.
+     */
+    public String createAndPersistCartId(String customerId) {
+        // Generate a new cartId (you can replace this with your existing logic)
+        String newCartId = UUID.randomUUID().toString();
+
+        // Persist to Customer DB
+        try {
+            String url = customerDbBaseUrl + "/customer/" + customerId;
+            List<String> body = List.of(newCartId);
+            restTemplate.postForEntity(url, body, Void.class);
+        } catch (Exception e) {
+            // You may want to throw an IllegalStateException here,
+            // so that the controller can translate it into a 500.
+            throw new IllegalStateException("Failed to persist cartId to Customer DB", e);
+        }
+
+        // Optionally store the mapping in the local map as a cache
+        cartIdByCustomer.put(customerId, newCartId);
+
+        return newCartId;
+    }
+
 }
 
 
