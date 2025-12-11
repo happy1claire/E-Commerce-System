@@ -64,17 +64,10 @@ resource "aws_ecs_service" "productdb" {
   }
 
   depends_on = [
-    aws_lb_listener.http,
-    # aws_ecs_service.rabbitmq  # Wait for RabbitMQ to be running
+    aws_lb_listener.productdb_http
   ]
 
   tags = {
     Name = "productdb-ecs-service"
   }
-}
-
-# Outputs
-output "productdb_service_name" {
-  description = "ProductDB ECS Service name"
-  value       = aws_ecs_service.productdb.name
 }

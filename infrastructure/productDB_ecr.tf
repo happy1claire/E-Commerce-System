@@ -17,8 +17,3 @@ output "productdb_ecr_repository_url" {
   description = "ECR repository URL for ProductDB"
   value       = aws_ecr_repository.productdb.repository_url
 }
-
-output "productdb_ecr_repository_arn" {
-  description = "ECR repository ARN"
-  value       = aws_ecr_repository.productdb.arn
-}

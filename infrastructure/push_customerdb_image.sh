@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Get the ECR repository URL from Terraform output
-ECR_URL=$(terraform output -raw productdb_ecr_repository_url)
+ECR_URL=$(terraform output -raw customerdb_ecr_repository_url)
 ECR_BASE=$(echo $ECR_URL | cut -d'/' -f1)
 AWS_REGION="us-east-1"
 
@@ -12,16 +12,16 @@ aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --
 
 # Build the Spring Boot application first with Maven
 echo "Building Spring Boot application with Maven..."
-cd productDB
+cd ../customerDb
 
 # Build Docker image for linux/amd64
 echo "Building Docker image for linux/amd64..."
-docker build --platform linux/amd64 -t productdb .
+docker build --platform linux/amd64 -t customerdb .
 cd ../
 
 # Tag the image for ECR
 echo "Tagging image..."
-docker tag productdb $ECR_URL:latest
+docker tag customerdb $ECR_URL:latest
 
 # Push to ECR
 echo "Pushing to ECR..."

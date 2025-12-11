@@ -2,8 +2,8 @@
 # 3. Target Groups
 # --------------------------------------------------------------------------
 
-resource "aws_lb_target_group" "productdb_tg" {
-  name        = "productdb-tg"
+resource "aws_lb_target_group" "customerdb_tg" {
+  name        = "customerdb-tg"
   port        = 8080        # The port your container listens on
   protocol    = "HTTP"
   vpc_id      = data.aws_vpc.default.id
@@ -27,8 +27,8 @@ resource "aws_lb_target_group" "productdb_tg" {
 # 4. The Application Load Balancer
 # --------------------------------------------------------------------------
 
-resource "aws_lb" "productdb" {
-  name               = "productdb-alb"
+resource "aws_lb" "customerdb" {
+  name               = "customerdb-alb"
   internal           = false
   load_balancer_type = "application"
   security_groups    = [aws_security_group.lb.id]
@@ -43,14 +43,14 @@ resource "aws_lb" "productdb" {
 # 5. Listeners and Rules
 # --------------------------------------------------------------------------
 
-resource "aws_lb_listener" "http" {
-  load_balancer_arn = aws_lb.productdb.arn
+resource "aws_lb_listener" "customerdb_http" {
+  load_balancer_arn = aws_lb.customerdb.arn
   port              = 80
   protocol          = "HTTP"
 
   default_action {
     type             = "forward"
-    target_group_arn = aws_lb_target_group.productdb_tg.arn
+    target_group_arn = aws_lb_target_group.customerdb_tg.arn
   }
 }
 
@@ -58,7 +58,7 @@ resource "aws_lb_listener" "http" {
 # 6. Outputs
 # --------------------------------------------------------------------------
 
-output "productdb_alb_dns_name" {
+output "customerdb_alb_dns_name" {
   description = "The DNS name of the ALB (your API endpoint)"
-  value       = aws_lb.productdb.dns_name
+  value       = aws_lb.customerdb.dns_name
 }

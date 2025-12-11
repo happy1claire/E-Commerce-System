@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Random;
 
 /**
  * This controller is a leaderless replication model where any node
@@ -28,6 +29,8 @@ public class ShoppingcartDbController {
   @Value("${propagation.timeout.ms}")
   private int propagationTimeoutMs;
 
+  private final Random random = new Random();
+
   /**
    * Constructs a new {@code LeaderlessController} with dependencies injected.
    *
@@ -38,6 +41,18 @@ public class ShoppingcartDbController {
   public ShoppingcartDbController(ShoppingcartStore shoppingcartStore, PropagationService propagationService) {
     this.shoppingcartStore = shoppingcartStore;
     this.propagationService = propagationService;
+  }
+
+  /**
+   * Simulates business logic processing time for this microservice endpoint.
+   * @throws IllegalStateException if the thread is interrupted while sleeping
+   */
+  private void simulateDelay() {
+    try {
+      Thread.sleep(100 + random.nextInt(900)); // 100–1000ms
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+    }
   }
 
   /**
@@ -57,6 +72,8 @@ public class ShoppingcartDbController {
    */
   @GetMapping("/get/{key}")
   public ResponseEntity<?> getItems(@PathVariable String key) throws InterruptedException {
+    simulateDelay();
+
     VersionedValue cart = propagationService.readWithQuorum(key, propagationTimeoutMs);
 
     if (cart == null) {
@@ -82,6 +99,8 @@ public class ShoppingcartDbController {
    */
   @PostMapping("/item/{key}")
   public ResponseEntity<?> setItem(@PathVariable String key, @RequestBody HashMap<Integer, Integer> items) {
+    simulateDelay();
+
     if (key == null || key.isEmpty()) {
       return ResponseEntity.badRequest().body("Key must not be empty");
     }
@@ -124,15 +143,6 @@ public class ShoppingcartDbController {
     );
   }
 
-//  @GetMapping
-//  public ResponseEntity<?> getCartId(@PathVariable String key) throws InterruptedException {
-//    if (key == null || key.isEmpty()) return ResponseEntity.badRequest().body("Key must not be empty");
-//
-//    String cartId = shoppingcartStore.getOrCreateCartId(key);
-//    return ResponseEntity.ok(Map.of("cartId", cartId));
-//  }
-
-
   /**
    * Handles propagation requests from peer nodes. (Call by other nodes.)
    * When a coordinator sends updates, each follower receives the propagated
@@ -145,6 +155,9 @@ public class ShoppingcartDbController {
    */
   @PostMapping("/propagate")
   public ResponseEntity<?> propagate(@RequestBody PropagateRequest request) throws InterruptedException {
+
+    simulateDelay();
+
     String key = request.getKey();
     Shoppingcart shoppingcart = request.getShoppingcart();
     long version = request.getVersion();
@@ -169,6 +182,7 @@ public class ShoppingcartDbController {
    */
   @GetMapping("/local_read/{key}")
   public ResponseEntity<?> localRead(@PathVariable String key) {
+    simulateDelay();
     VersionedValue v = shoppingcartStore.getCart(key);
     if (v == null) return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
     return ResponseEntity.ok(Map.of("shoppingcart", v.getShoppingcart(), "version", v.getVersion(), "timestamp", v.getTimestamp()));

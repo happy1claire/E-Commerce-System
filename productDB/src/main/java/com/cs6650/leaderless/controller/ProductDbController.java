@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
 import java.util.Map;
+import java.util.Random;
 
 /**
  * This controller is a leaderless replication model where any node
@@ -25,6 +26,19 @@ public class ProductDbController {
 
   @Value("${propagation.timeout.ms}")
   private int propagationTimeoutMs;
+
+  private final Random random = new Random();
+  /**
+   * Simulates business logic processing time for this microservice endpoint.
+   * @throws IllegalStateException if the thread is interrupted while sleeping
+   */
+  private void simulateDelay() {
+    try {
+      Thread.sleep(100 + random.nextInt(900)); // 100–1000ms
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+    }
+  }
 
   /**
    * Constructs a new {@code LeaderlessController} with dependencies injected.
@@ -51,6 +65,9 @@ public class ProductDbController {
    */
   @PostMapping("/product")
   public ResponseEntity<?> addProduct(@RequestBody Product product) {
+
+    simulateDelay();
+
     Integer key = product.getId();
 
     Transaction.begin();
@@ -88,6 +105,8 @@ public class ProductDbController {
    */
   @PutMapping("/product/{id}")
   public ResponseEntity<?> updateProduct(@PathVariable Integer id, @RequestBody Product product) {
+    simulateDelay();
+
     Transaction.begin();
 
     if (id == null) {
@@ -138,6 +157,7 @@ public class ProductDbController {
    */
   @PostMapping("/propagate")
   public ResponseEntity<?> propagate(@RequestBody PropagateRequest request) throws InterruptedException {
+    simulateDelay();
     Integer key = request.getKey();
     Product product = request.getProduct();
     long version = request.getVersion();
@@ -164,6 +184,7 @@ public class ProductDbController {
    */
   @GetMapping("/get/{key}")
   public ResponseEntity<?> lookUpProduct(@PathVariable Integer key) throws InterruptedException {
+    simulateDelay();
     VersionedValue v = productStorage.get(key);
     if (v == null) return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
 
@@ -189,6 +210,7 @@ public class ProductDbController {
    */
   @GetMapping("/local_read/{key}")
   public ResponseEntity<?> localRead(@PathVariable Integer key) {
+    simulateDelay();
     VersionedValue v = productStorage.get(key);
     if (v == null) return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
     return ResponseEntity.ok(Map.of("product", v.getProduct(), "version", v.getVersion(), "timestamp", v.getTimestamp()));
