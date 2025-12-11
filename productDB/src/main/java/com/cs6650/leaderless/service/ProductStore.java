@@ -34,6 +34,11 @@ public class ProductStore {
 
   // write if newer (or absent)
   public void putIfNewer(Integer key, Product product, long version) throws InterruptedException {
+
+    long incomingCounter = version >>> 16;
+
+    versionCounter.updateAndGet(cur -> Math.max(cur, incomingCounter));
+
     productStorage.compute(key, (k, existing) -> {
       if (existing == null || version > existing.getVersion()) {
         return new VersionedValue(product, version, System.currentTimeMillis());

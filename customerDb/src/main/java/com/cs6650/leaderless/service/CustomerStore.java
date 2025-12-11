@@ -58,6 +58,12 @@ public class CustomerStore {
 
   // write if newer (or absent)
   public void putIfNewer(String key, Customer customer, long version) throws InterruptedException {
+
+    long incomingCounter = version >>> 16;
+
+    // Raise local counter if remote counter is higher (Lamport merge)
+    versionCounter.updateAndGet(cur -> Math.max(cur, incomingCounter));
+
     customers.compute(key, (k, existing) -> {
       if (existing == null || version > existing.getVersion()) {
         return new VersionedValue(customer, version, System.currentTimeMillis());

@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 
 /**
  * A leaderless-replication Customer database controller.
@@ -30,6 +31,8 @@ public class CustomerDbController {
   @Value("${propagation.timeout.ms}")
   private int propagationTimeoutMs;
 
+  private final Random random = new Random();
+
   /**
    * Constructs a new CustomerDbController with injected dependencies.
    *
@@ -40,6 +43,18 @@ public class CustomerDbController {
   public CustomerDbController(CustomerStore customerStore, PropagationService propagationService) {
     this.customerStore = customerStore;
     this.propagationService = propagationService;
+  }
+
+  /**
+   * Simulates business logic processing time for this microservice endpoint.
+   * @throws IllegalStateException if the thread is interrupted while sleeping
+   */
+  private void simulateDelay() {
+    try {
+      Thread.sleep(100 + random.nextInt(900)); // 100–1000ms
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+    }
   }
 
   /**
@@ -57,6 +72,7 @@ public class CustomerDbController {
    */
   @GetMapping("/get/{key}")
   public ResponseEntity<?> getCustomer(@PathVariable String key) throws InterruptedException {
+    simulateDelay();
     VersionedValue customer = propagationService.readWithQuorum(key, propagationTimeoutMs);
 
     if (customer == null) {
@@ -85,6 +101,7 @@ public class CustomerDbController {
    */
   @PostMapping("/customer/{key}")
   public ResponseEntity<?> setCartId(@PathVariable String key, @RequestBody List<String> cartIds) {
+    simulateDelay();
     if (key == null || key.isEmpty()) {
       return ResponseEntity.badRequest().body("Key must not be empty");
     }
@@ -139,6 +156,7 @@ public class CustomerDbController {
    */
   @PostMapping("/propagate")
   public ResponseEntity<?> propagate(@RequestBody PropagateRequest request) throws InterruptedException {
+    simulateDelay();
     String key = request.getKey();
     Customer customer = request.getCustomer();
     long version = request.getVersion();
@@ -162,6 +180,7 @@ public class CustomerDbController {
    */
   @GetMapping("/local_read/{key}")
   public ResponseEntity<?> localRead(@PathVariable String key) {
+    simulateDelay();
     VersionedValue v = customerStore.getCustomer(key);
     if (v == null) return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
     return ResponseEntity.ok(Map.of("customer", v.getCustomer(), "version", v.getVersion(), "timestamp", v.getTimestamp()));

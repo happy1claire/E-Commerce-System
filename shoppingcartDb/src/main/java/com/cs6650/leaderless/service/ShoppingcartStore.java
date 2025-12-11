@@ -14,9 +14,6 @@ public class ShoppingcartStore {
   /** ConcurrentHashMap<String CartId, VersionedValue>*/
   private final ConcurrentHashMap<String, VersionedValue> carts = new ConcurrentHashMap<>();
 
-//  /** ConcurrentHashMap<String CustomerId, CartId>*/
-//  private final ConcurrentHashMap<String, String> customerToCart =  new ConcurrentHashMap<>();
-
   private final AtomicLong versionCounter = new AtomicLong(0);
   private final int nodeId;
 
@@ -38,26 +35,6 @@ public class ShoppingcartStore {
     return carts.get(key);
   }
 
-//  public String getOrCreateCartId(String key) {
-//    if (customerToCart.containsKey(key)) {
-//      return customerToCart.get(key);
-//    }
-//
-//
-//    // Randomly generate a new ID
-//    UUID newCartId = UUID.randomUUID();
-//    String cartId = newCartId.toString();
-//
-//    // Create a new shoppingcart
-//    Shoppingcart shoppingcart = new Shoppingcart(cartId, key);
-//    long version = nextVersion();
-//    writeLocal(cartId, shoppingcart, version);
-//    customerToCart.put(key, cartId);
-//
-//    return customerToCart.get(key);
-//  }
-
-  // write if newer (or absent)
   public void putIfNewer(String key, Shoppingcart shoppingcart, long version) throws InterruptedException {
     // Extract counter from incoming version
     long incomingCounter = version >>> 16;

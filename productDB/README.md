@@ -178,7 +178,7 @@ curl -X POST "http://localhost:8083/product" \
 Step 2: Update the product on node3
 
 ```bash
-curl -X PUT "http://localhost:8083/product/2" \
+curl -X PUT "http://localhost:8083/product/1" \
 -H "Content-Type: application/json" \
 -d '{
   "id": 1,
@@ -198,16 +198,16 @@ curl http://localhost:8081/get/2
 Step 4: Local read to show updated version
 
 ```bash
-curl http://localhost:8081/local_read/2
+curl http://localhost:8081/local_read/1
 ```
 
 Step 5: Read after propagation completes
 
 ```bash
-curl http://localhost:8081/get/2
-curl http://localhost:8082/get/2
-curl http://localhost:8084/get/2
-curl http://localhost:8085/get/2
+curl http://localhost:8081/get/1
+curl http://localhost:8082/get/1
+curl http://localhost:8084/get/1
+curl http://localhost:8085/get/1
 ```
 
 
