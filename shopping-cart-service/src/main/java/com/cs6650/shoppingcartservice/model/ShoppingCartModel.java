@@ -76,29 +76,6 @@ public class ShoppingCartModel {
     }
 
 
-
-    /**
-     * Get or generate customer's cartId
-     */
-    public String findCartIdByCustomer(String customerId) {
-        // 1. Check local cache
-        String cached = cartIdByCustomer.get(customerId);
-        if (cached != null) {
-            return cached;
-        }
-
-        // 2. Try to read from Customer DB
-        String existing = fetchCartIdFromDb(customerId);
-        if (existing != null && !existing.isEmpty()) {
-            cartIdByCustomer.put(customerId, existing);
-            return existing;
-        }
-
-        // 3. No cartId in DB; create and persist a new one
-        String newCartId = createAndPersistCartId(customerId);
-        return newCartId;
-    }
-
     /**
      * Randomly generate a customer ID.
      */

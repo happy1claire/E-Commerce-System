@@ -75,31 +75,6 @@ public class ShoppingCartController {
         model.checkout(cartId, creditCardNumber);
     }
 
-    /**
-     * Mocking one user.
-     * Generate a cart ID, add items to the cart multiple times, and checkout.
-     *
-     * itemId is now an integer, not SKU.
-     */
-    @PostMapping("/shopToOrder")
-    @ResponseStatus(HttpStatus.ACCEPTED)
-    public void shopToOrder(@RequestParam String creditCardNumber) {
-        String customerId = model.getCustomerId();
-        String cartId = model.findCartIdByCustomer(customerId);
-
-        // randomly generate 1–3 items
-        int itemCount = (int)(Math.random() * 3) + 1;
-
-        for (int i = 0; i < itemCount; i++) {
-            int itemId = (int)(Math.random() * 10) + 1;   // int itemId: 1–10
-            int quantity = (int)(Math.random() * 100) + 1;
-
-            model.addToCart(cartId, itemId, quantity);
-        }
-
-        model.checkout(cartId, creditCardNumber);
-    }
-
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<Map<String, String>> handleIllegalArgument(IllegalArgumentException ex) {
         return ResponseEntity
