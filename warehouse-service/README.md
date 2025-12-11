@@ -53,7 +53,7 @@ Once started, the service will be available at `http://localhost:8080`.
 
 You can use a command-line tool like `curl` to interact with the API.
 
-### Reserve Items (`/warehouse/reserve`)
+### Reserve Items (`/warehouse/reserve`) (Please skip reserve part)
 
 This endpoint simulates an inventory check with a 90% success rate.
 
@@ -88,3 +88,49 @@ This endpoint can be used to verify that the service is running and responsive.
 ```bash
 curl http://localhost:8080/warehouse/health
 ```
+
+## Manual Testing with RabbitMQ Management UI
+### 1. First, make sure RabbitMQ is running:
+```bash
+docker run -d \
+  --name rabbitmq \
+  -p 5672:5672 \
+  -p 15672:15672 \
+  rabbitmq:3-management
+```
+
+### 2. Access RabbitMQ Management UI: http://localhost:15672 (guest/guest)
+Send a test message:
+1. Go to "Queues" tab
+2. Click on warehouse_orders queue
+3. Go to "Publish message" section
+4. Paste this JSON:
+```bash
+{
+  "orderId": "test-123",
+  "items": [
+    {
+      "productId": "101",
+      "quantity": 5
+    },
+    {
+      "productId": "202",
+      "quantity": 3
+    }
+  ]
+}
+```
+### 3. Start the Warehouse Service
+```bash
+./gradlew bootRun
+```
+
+### 4. Verify in logs
+Shipping product 101, quantity: 5
+- Processed 1 orders
+
+### 5. Check RabbitMQ UI (http://localhost:15672)
+Messages should be consumed (queue depth = 0)
+
+
+
