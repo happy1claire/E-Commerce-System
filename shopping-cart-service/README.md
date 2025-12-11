@@ -1,7 +1,20 @@
-## Test this service locally
+## Run this service on AWS
+```
+cd shopping-cart-service
+mvn spring-boot:run \
+  -Dspring-boot.run.arguments="\
+--customer.db.base-url=http://{AWS_customerDB_ALB}\
+--shoppingCart.db.base-url=http://{AWS_shoppingCartDB_ALB}"
+
+```
+
+## Run this service locally
+### 0. Run the databases
+See `customerDB` and `shoppingCartDB` 
 
 ### 1. Run the Warehouse Service
-See `warehouse-service/README.md`
+(Change the server port to 8071)
+See `warehouse-service/README.md` 
 
 ### 2. Run the Credit Card Auth Service. 
 ```
@@ -9,7 +22,8 @@ cd a3-CreditCard-service
 mvn spring-boot:run
 ```
 
-### 3. Run the Shopping Cart Service
+### 3. Run the Shopping Cart Service 
+(Change the server port to 8072)
 ```
 cd shopping-cart-service
 mvn spring-boot:run
