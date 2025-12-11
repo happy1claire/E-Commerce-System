@@ -1,6 +1,8 @@
 package com.cs6650.shoppingcartservice.controller;
 
 import com.cs6650.shoppingcartservice.model.ShoppingCartModel;
+import com.cs6650.shoppingcartservice.service.DelaySimulatorService;
+
 
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -14,9 +16,11 @@ import java.util.Map;
 public class ShoppingCartController {
 
     private final ShoppingCartModel model;
+    private final DelaySimulatorService delayService;
 
-    public ShoppingCartController(ShoppingCartModel model) {
+    public ShoppingCartController(ShoppingCartModel model, DelaySimulatorService delayService) {
         this.model = model;
+        this.delayService = delayService;
     }
 
     /**
@@ -26,6 +30,9 @@ public class ShoppingCartController {
      */
     @GetMapping("/by-customer/{customerId}")
     public Map<String, String> getOrCreateCartId(@PathVariable String customerId) {
+        // simulate delay before DB access
+        delayService.simulateDelay();
+
         String existingCartId = model.fetchCartIdFromDb(customerId);
         System.out.println(existingCartId);
 
@@ -46,6 +53,8 @@ public class ShoppingCartController {
     public ResponseEntity<Map<Integer, Integer>> addToCart(@PathVariable String cartId,
                                                            @RequestParam int itemId,
                                                            @RequestParam int quantity) {
+        // simulate delay before DB access
+        delayService.simulateLogNormalDelay();
 
         model.addToCart(cartId, itemId, quantity);
 
@@ -72,31 +81,6 @@ public class ShoppingCartController {
     @ResponseStatus(HttpStatus.ACCEPTED)
     public void checkout(@PathVariable String cartId,
                          @RequestParam String creditCardNumber) {
-        model.checkout(cartId, creditCardNumber);
-    }
-
-    /**
-     * Mocking one user.
-     * Generate a cart ID, add items to the cart multiple times, and checkout.
-     *
-     * itemId is now an integer, not SKU.
-     */
-    @PostMapping("/shopToOrder")
-    @ResponseStatus(HttpStatus.ACCEPTED)
-    public void shopToOrder(@RequestParam String creditCardNumber) {
-        String customerId = model.getCustomerId();
-        String cartId = model.findCartIdByCustomer(customerId);
-
-        // randomly generate 1–3 items
-        int itemCount = (int)(Math.random() * 3) + 1;
-
-        for (int i = 0; i < itemCount; i++) {
-            int itemId = (int)(Math.random() * 10) + 1;   // int itemId: 1–10
-            int quantity = (int)(Math.random() * 100) + 1;
-
-            model.addToCart(cartId, itemId, quantity);
-        }
-
         model.checkout(cartId, creditCardNumber);
     }
 

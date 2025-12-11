@@ -76,29 +76,6 @@ public class ShoppingCartModel {
     }
 
 
-
-    /**
-     * Get or generate customer's cartId
-     */
-    public String findCartIdByCustomer(String customerId) {
-        // 1. Check local cache
-        String cached = cartIdByCustomer.get(customerId);
-        if (cached != null) {
-            return cached;
-        }
-
-        // 2. Try to read from Customer DB
-        String existing = fetchCartIdFromDb(customerId);
-        if (existing != null && !existing.isEmpty()) {
-            cartIdByCustomer.put(customerId, existing);
-            return existing;
-        }
-
-        // 3. No cartId in DB; create and persist a new one
-        String newCartId = createAndPersistCartId(customerId);
-        return newCartId;
-    }
-
     /**
      * Randomly generate a customer ID.
      */
@@ -142,7 +119,6 @@ public class ShoppingCartModel {
 
     /**
      * After User clicks checkout:
-     * - call Warehouse.reserve to reserve each product
      * - call CreditCardAuthorizer
      * - call Warehouse.ship to ship each product
      */
@@ -157,26 +133,12 @@ public class ShoppingCartModel {
             throw new IllegalArgumentException("Cart is empty for cartId: " + cartId);
         }
 
-        // 2. Reserve inventory for each item
-        for (Map.Entry<Integer, Integer> entry : items.entrySet()) {
-            int itemId = entry.getKey();        // e.g. 1
-            int quantity = entry.getValue();
-
-            long productId = itemId;           // itemId already represents the product ID
-
-            boolean reserved = warehouseService.reserve(productId, quantity);
-            if (!reserved) {
-                // Fail fast if any item cannot be reserved
-                throw new IllegalStateException("Not enough inventory for itemId: " + itemId);
-            }
-        }
-
-        // credit card must match the format 1234-5678-9012-3456
+        // 2. Credit card number format check: credit card must match the format 1234-5678-9012-3456
         if (!creditCardNumber.matches("\\d{4}-\\d{4}-\\d{4}-\\d{4}")) {
             throw new IllegalArgumentException("creditCardNumber format invalid");
         }
 
-        // 3. Authorize payment
+        // 3. Credit Card Authorization
         authService.authorize(creditCardNumber);
 
         // 4. Ship all items
