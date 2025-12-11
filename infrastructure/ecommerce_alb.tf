@@ -36,9 +36,9 @@ resource "aws_lb_target_group" "cart_tg" {
     protocol            = "HTTP"
     port                = "8080"
     healthy_threshold   = 2
-    unhealthy_threshold = 5          # More tolerant
-    timeout             = 5
-    interval            = 60           # Check every 60 seconds
+    unhealthy_threshold = 10          # More tolerant
+    timeout             = 30
+    interval            = 120           # Check every 120 seconds
     matcher             = "200"        # Expected HTTP status code
   }
 }

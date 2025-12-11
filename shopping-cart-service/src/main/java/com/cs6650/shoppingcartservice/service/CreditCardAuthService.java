@@ -44,7 +44,7 @@ public class CreditCardAuthService {
         try {
             restTemplate.postForEntity(authServiceUrl, request, String.class);
             // If we get here, it was a 200-level success.
-
+            return;
         } catch (HttpClientErrorException e) {
 
             if (e.getStatusCode() == HttpStatus.PAYMENT_REQUIRED) { // 402

@@ -13,8 +13,8 @@ resource "aws_ecs_task_definition" "rabbitmq" {
   family                   = "rabbitmq"
   network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
-  cpu                      = "1024"   # 1 vCPU
-  memory                   = "3072"   # 3 GB
+  cpu                      = "512"  # 0.5 vCPU
+  memory                   = "1024" # 1 GB
   execution_role_arn       = data.aws_iam_role.lab_role.arn
   task_role_arn            = data.aws_iam_role.lab_role.arn
 

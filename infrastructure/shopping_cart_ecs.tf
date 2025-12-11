@@ -13,8 +13,8 @@ resource "aws_ecs_task_definition" "shopping_cart" {
   family                   = "shopping-cart"
   network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
-  cpu                      = "2048"   # 1 vCPU
-  memory                   = "4096" # 2 GB
+  cpu                      = "512"  # 0.5 vCPU
+  memory                   = "1024" # 1 GB
   execution_role_arn       = data.aws_iam_role.lab_role.arn
   task_role_arn            = data.aws_iam_role.lab_role.arn
 
@@ -63,7 +63,7 @@ resource "aws_ecs_task_definition" "shopping_cart" {
       },
       {
         name = "WAREHOUSE_SERVICE_URL",
-        value = aws_lb.main.dns_name  # ALB DNS name for warehouse service
+        value = "http://${aws_lb.main.dns_name}"  # ALB DNS name for warehouse service
       },
       {
         name = "SERVER_PORT",
@@ -71,12 +71,13 @@ resource "aws_ecs_task_definition" "shopping_cart" {
       },
       {
         name  = "CUSTOMER_DB_BASE_URL",
-        value = aws_lb.customerdb.dns_name  # ALB DNS name for customer DB service
-      },
-      {
+        value = "http://${aws_lb.customerdb.dns_name}"  # ALB DNS name for customer DB service
+       },
+       {
         name  = "SHOPPINGCART_DB_BASE_URL",
-        value = aws_lb.shoppingcartdb.dns_name  # ALB DNS name for shopping cart DB service
-      }
+        value = "http://${aws_lb.shoppingcartdb.dns_name}"  # ALB DNS name for shopping cart DB service
+       }
+
     ]
 
     logConfiguration = {
@@ -121,6 +122,55 @@ resource "aws_ecs_service" "shopping_cart" {
 
   tags = {
     Name = "shopping-cart-ecs-service"
+  }
+
+    lifecycle {
+    ignore_changes = [desired_count]
+  }
+}
+
+resource "aws_appautoscaling_target" "shopping_cart_target" {
+  max_capacity       = 3    # Maximum number of tasks to run
+  min_capacity       = 1    # Minimum number of tasks to run
+  resource_id        = "service/${aws_ecs_cluster.main.name}/${aws_ecs_service.shopping_cart.name}"
+  scalable_dimension = "ecs:service:DesiredCount"
+  service_namespace  = "ecs"
+}
+
+resource "aws_appautoscaling_policy" "shopping_cart_cpu" {
+  name               = "shopping-cart-cpu-scaling"
+  policy_type        = "TargetTrackingScaling"
+  resource_id        = aws_appautoscaling_target.shopping_cart_target.resource_id
+  scalable_dimension = aws_appautoscaling_target.shopping_cart_target.scalable_dimension
+  service_namespace  = aws_appautoscaling_target.shopping_cart_target.service_namespace
+
+  target_tracking_scaling_policy_configuration {
+    predefined_metric_specification {
+      predefined_metric_type = "ECSServiceAverageCPUUtilization"
+    }
+    
+    # Keep average CPU at 70%. If it goes higher, scale up. Lower, scale down.
+    target_value       = 70.0 
+    scale_in_cooldown  = 300
+    scale_out_cooldown = 60
+  }
+}
+
+resource "aws_appautoscaling_policy" "shopping_cart_memory" {
+  name               = "shopping-cart-memory-scaling"
+  policy_type        = "TargetTrackingScaling"
+  resource_id        = aws_appautoscaling_target.shopping_cart_target.resource_id
+  scalable_dimension = aws_appautoscaling_target.shopping_cart_target.scalable_dimension
+  service_namespace  = aws_appautoscaling_target.shopping_cart_target.service_namespace
+
+  target_tracking_scaling_policy_configuration {
+    predefined_metric_specification {
+      predefined_metric_type = "ECSServiceAverageMemoryUtilization"
+    }
+    
+    target_value       = 80.0
+    scale_in_cooldown  = 300
+    scale_out_cooldown = 60
   }
 }
 

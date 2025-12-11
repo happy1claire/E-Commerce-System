@@ -13,8 +13,8 @@ resource "aws_ecs_task_definition" "shoppingcartdb" {
   family                   = "shoppingcartdb"
   network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
-  cpu                      = "2048"   # 1 vCPU
-  memory                   = "4096" # 2 GB
+  cpu                      = "1024" # 1 vCPU
+  memory                   = "2048" # 2 GB
   execution_role_arn       = data.aws_iam_role.lab_role.arn
   task_role_arn            = data.aws_iam_role.lab_role.arn
 
