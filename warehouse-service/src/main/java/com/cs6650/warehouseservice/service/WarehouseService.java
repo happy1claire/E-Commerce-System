@@ -1,13 +1,16 @@
 package com.cs6650.warehouseservice.service;
 
+import com.cs6650.warehouseservice.dto.ShipRequest;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rabbitmq.client.Channel;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.amqp.support.AmqpHeaders;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
 
 import jakarta.annotation.PreDestroy;
 import java.io.IOException;
@@ -37,6 +40,18 @@ public class WarehouseService {
 
     // Object mapper that is reusable
     private static final ObjectMapper objectMapper = new ObjectMapper();
+
+    // Add RestTemplate for making HTTP calls
+    private final RestTemplate restTemplate;
+    // private final String shipEndpoint = "http://localhost:8082/warehouse/ship";
+
+    // Inject from application.properties - configurable for different environments
+    @Value("${warehouse.ship.endpoint:http://localhost:8080/warehouse/ship}")
+    private String shipEndpoint;
+
+    public WarehouseService(RestTemplate restTemplate) {
+        this.restTemplate = restTemplate;
+    }
 
     /**
      * This is the multithreaded consumer of RabbitMQ messages.
@@ -73,6 +88,17 @@ public class WarehouseService {
                     if (productId != null && quantity > 0) {
                         productInventory.computeIfAbsent(productId, k -> new AtomicLong(0))
                                 .addAndGet(quantity);
+
+                        // Call the ship endpoint for each item
+                        try {
+                            ShipRequest shipRequest = new ShipRequest();
+                            shipRequest.setProductId(Integer.parseInt(productId));
+                            shipRequest.setQuantity(quantity);
+
+                            restTemplate.postForEntity(shipEndpoint, shipRequest, String.class);
+                        } catch (Exception e) {
+                            System.err.println("Failed to call ship endpoint for product " + productId + ": " + e.getMessage());
+                        }
                     }
                 }
             }

@@ -13,8 +13,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Map;
-import org.springframework.http.HttpStatus;
 import java.util.UUID;
+import org.springframework.http.HttpStatus;
 import java.util.concurrent.ThreadLocalRandom;
 
 @RestController
@@ -29,41 +29,41 @@ public class WarehouseController {
     }
 
 
-    /**
-     * Endpoint to reserve items from the warehouse.
-     * Simulates a 90% success rate for inventory check.
-     */
-    @PostMapping("/reserve")
-    public ResponseEntity<?> reserve(@RequestBody ReserveRequest request) {
-        // Simulate a random delay between 50ms and 200ms
-        delaySimulator.simulateDelay();
-
-        // Validate input
-        if (request.getProductId() <= 0 || request.getQuantity() <= 0) {
-            return ResponseEntity.badRequest().body("Invalid product ID or quantity");
-        }
-
-        // Randomly decide: 90% success (0-89), 10% failure (90-99)
-        boolean hasInventory = ThreadLocalRandom.current().nextInt(100) < 90;
-
-        if (hasInventory) {
-            logger.info("Reserved product {}, quantity: {}", request.getProductId(), request.getQuantity());
-            return ResponseEntity.ok(Map.of(
-                "message", "Inventory reserved",
-                "productId", request.getProductId(),
-                "quantity", request.getQuantity(),
-                "reserved", true
-            ));
-        } else {
-            logger.warn("Failed to reserve product {}, quantity: {}. Not enough stock.", request.getProductId(), request.getQuantity());
-            return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(
-                "message", "Insufficient inventory",
-                "productId", request.getProductId(),
-                "quantity", request.getQuantity(),
-                "reserved", false
-            ));
-        }
-    }
+//    /**
+//     * Endpoint to reserve items from the warehouse.
+//     * Simulates a 90% success rate for inventory check.
+//     */
+//    @PostMapping("/reserve")
+//    public ResponseEntity<?> reserve(@RequestBody ReserveRequest request) {
+//        // Simulate a random delay
+//        delaySimulator.simulateDelay();
+//
+//        // Validate input
+//        if (request.getProductId() <= 0 || request.getQuantity() <= 0) {
+//            return ResponseEntity.badRequest().body("Invalid product ID or quantity");
+//        }
+//
+//        // Randomly decide: 90% success (0-89), 10% failure (90-99)
+//        boolean hasInventory = ThreadLocalRandom.current().nextInt(100) < 90;
+//
+//        if (hasInventory) {
+//            logger.info("Reserved product {}, quantity: {}", request.getProductId(), request.getQuantity());
+//            return ResponseEntity.ok(Map.of(
+//                "message", "Inventory reserved",
+//                "productId", request.getProductId(),
+//                "quantity", request.getQuantity(),
+//                "reserved", true
+//            ));
+//        } else {
+//            logger.warn("Failed to reserve product {}, quantity: {}. Not enough stock.", request.getProductId(), request.getQuantity());
+//            return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(
+//                "message", "Insufficient inventory",
+//                "productId", request.getProductId(),
+//                "quantity", request.getQuantity(),
+//                "reserved", false
+//            ));
+//        }
+//    }
 
     /**
      * Endpoint to ship items from the warehouse.
@@ -71,7 +71,7 @@ public class WarehouseController {
      */
     @PostMapping("/ship")
     public ResponseEntity<?> ship(@RequestBody ShipRequest request) {
-        // Simulate a random delay between 100ms and 500ms
+        // Simulate a random delay
         delaySimulator.simulateDelay();
 
         // Validate input
