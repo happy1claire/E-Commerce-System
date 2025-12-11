@@ -1,17 +1,36 @@
 # cs6650-assignment5
 
 ```bash
+cd infrastructure
+
 terraform init
 
 # first create ECR repository
 terraform apply \
 -target=aws_ecr_repository.productdb \
+-target=aws_ecr_repository.customerdb \
+-target=aws_ecr_repository.shoppingcartdb \
+-target=aws_ecr_repository.rabbitmq \
+-target=aws_ecr_repository.product \
+-target=aws_ecr_repository.credit_card \
+-target=aws_ecr_repository.warehouse \
+-target=aws_ecr_repository.shopping_cart
+
 
 # give permisson to script files
 chmod +x ./*.sh
 
+# terraform apply -target=aws_ecs_service.customerdb -target=aws_ecs_service.shoppingcartdb
+
 # build and push images to ECR
 ./push_productdb_image.sh
+./push_customerdb_image.sh
+./push_shoppingcartdb_image.sh
+./push_rabbitmq_image.sh
+./push_product_image.sh
+./push_credit_card_image.sh
+./push_warehouse_image.sh
+./push_shopping_cart_image.sh
 
 # then create everything else
 terraform apply
@@ -47,25 +66,3 @@ curl -X POST "{{baseUrl}}/config/peers" \
 ```
 
 The baseUrl can be replaced with the public IP of each node respectively or use the load balancer address to set the peers for all nodes at once. If using load balancer address, make sure to run the command multiple times until all nodes have their peers set.
-
-Send create product request to database
-
-```bash
-curl -X POST http://{{aws_loadbalancer_address}}/product \
-     -H "Content-Type: application/json" \
-     -d '{
-           "id": "prod-001",
-           "name": "Wireless Headphones",
-           "price": 99.99,
-           "description": "Noise-cancelling over-ear headphones."
-         }'
-```
-
-Send get product request to database
-
-```bash
-curl -X GET http://{{aws_loadbalancer_address}}/get/{{key}}
-```
-
-Change the `{{key}}` to the product ID you created earlier.
-

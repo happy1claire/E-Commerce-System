@@ -141,16 +141,3 @@ resource "aws_security_group" "ecs_services" {
     Name = "ecommerce-ecs-services-sg"
   }
 }
-
-# Port 5672 - RabbitMQ AMQP (for services within the VPC to connect to NLB)
-# resource "aws_vpc_security_group_ingress_rule" "allow_rabbitmq_amqp_from_ecs_to_nlb" {
-#   security_group_id = aws_security_group.lb.id # Attaches rule to SG B
-
-#   # Rule details
-#   from_port   = 5672
-#   to_port     = 5672
-#   ip_protocol = "tcp"
-
-#   # The source
-#   referenced_security_group_id = aws_security_group.ecs_services.id # Allows traffic FROM SG A
-# }
