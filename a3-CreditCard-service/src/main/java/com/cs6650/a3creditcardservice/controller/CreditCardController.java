@@ -37,7 +37,7 @@ public class CreditCardController {
         int roll = ThreadLocalRandom.current().nextInt(100);
         if (roll < AUTH_SUCCESS_PERCENT) {
             log.info("CCA AUTHORIZED {}", cc);
-            // 規格允許 200 OK 無 body；若要帶訊息可回一個小物件
+            
             return ResponseEntity.ok("Authorized");
         } else {
             log.info("CCA DECLINED {}", cc);
